@@ -1,0 +1,17 @@
+# Framework & Core
+Django>=5.0,<5.1
+django-environ
+psycopg2-binary
+requests
+
+# PDF Generation & Signing
+WeasyPrint
+pyhanko[crypto]
+
+# Frontend & UI
+django-htmx
+django-widget-tweaks
+
+# Security
+django-axes  # Protección fuerza bruta
+# django-csp # (Opcional, requiere configuración fina)
