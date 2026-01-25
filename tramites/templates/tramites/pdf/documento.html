@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ tramite.get_tipo_documento_display }} - {{ tramite.numero_referencia }}</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 2cm;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12pt;
+            line-height: 1.6;
+            color: #000;
+        }
+        .header {
+            text-align: center;
+            border-bottom: 3px solid #000;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 18pt;
+            font-weight: bold;
+        }
+        .header .subtitle {
+            font-size: 14pt;
+            margin-top: 10px;
+        }
+        .content {
+            margin-top: 30px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-weight: bold;
+            font-size: 14pt;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+        .field {
+            margin-bottom: 8px;
+        }
+        .field-label {
+            font-weight: bold;
+            display: inline-block;
+            width: 200px;
+        }
+        .field-value {
+            display: inline-block;
+        }
+        .footer {
+            margin-top: 50px;
+            text-align: center;
+            font-size: 10pt;
+            color: #666;
+            border-top: 1px solid #ccc;
+            padding-top: 20px;
+        }
+        .signature-area {
+            margin-top: 60px;
+            text-align: right;
+        }
+        .signature-line {
+            border-top: 1px solid #000;
+            width: 300px;
+            margin-left: auto;
+            margin-top: 50px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MINISTERIO DE COMERCIO E INDUSTRIAS</h1>
+        <div class="subtitle">Sistema Automatizado de Generación de Certificados (SAGEC)</div>
+    </div>
+    
+    <div class="content">
+        <div class="section">
+            <div class="section-title">{{ tramite.get_tipo_documento_display }}</div>
+            
+            <div class="field">
+                <span class="field-label">Número de Referencia:</span>
+                <span class="field-value">{{ tramite.numero_referencia|default:tramite.uuid }}</span>
+            </div>
+            
+            <div class="field">
+                <span class="field-label">Fecha de Emisión:</span>
+                <span class="field-value">{{ tramite.fecha_creacion|date:"d/m/Y" }}</span>
+            </div>
+            
+            {% if tramite.fecha_firma %}
+            <div class="field">
+                <span class="field-label">Fecha de Firma:</span>
+                <span class="field-value">{{ tramite.fecha_firma|date:"d/m/Y H:i" }}</span>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% if empresa %}
+        <div class="section">
+            <div class="section-title">Información de la Empresa</div>
+            
+            <div class="field">
+                <span class="field-label">RUC:</span>
+                <span class="field-value">{{ empresa.ruc_completo|default:empresa.ruc|default:"N/A" }}</span>
+            </div>
+            
+            {% if empresa.razon_social %}
+            <div class="field">
+                <span class="field-label">Razón Social:</span>
+                <span class="field-value">{{ empresa.razon_social }}</span>
+            </div>
+            {% endif %}
+            
+            {% if empresa.razon_comercial %}
+            <div class="field">
+                <span class="field-label">Razón Comercial:</span>
+                <span class="field-value">{{ empresa.razon_comercial }}</span>
+            </div>
+            {% endif %}
+            
+            {% if empresa.representante_legal %}
+            <div class="field">
+                <span class="field-label">Representante Legal:</span>
+                <span class="field-value">{{ empresa.representante_legal }}</span>
+            </div>
+            {% endif %}
+            
+            {% if empresa.ubicacion_completa %}
+            <div class="field">
+                <span class="field-label">Ubicación:</span>
+                <span class="field-value">{{ empresa.ubicacion_completa }}</span>
+            </div>
+            {% endif %}
+            
+            {% if empresa.actividad_comercial %}
+            <div class="field">
+                <span class="field-label">Actividad Comercial:</span>
+                <span class="field-value">{{ empresa.actividad_comercial }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+        
+        <div class="section">
+            <div class="section-title">Trazabilidad</div>
+            
+            <div class="field">
+                <span class="field-label">Solicitante:</span>
+                <span class="field-value">{{ tramite.solicitante.get_full_name|default:tramite.solicitante.username }}</span>
+            </div>
+            
+            {% if tramite.revisor %}
+            <div class="field">
+                <span class="field-label">Revisor:</span>
+                <span class="field-value">{{ tramite.revisor.get_full_name|default:tramite.revisor.username }}</span>
+            </div>
+            {% endif %}
+            
+            {% if tramite.firmante %}
+            <div class="field">
+                <span class="field-label">Firmante:</span>
+                <span class="field-value">{% if tramite.firmante.get_full_name %}{{ tramite.firmante.get_full_name }}{% else %}{{ tramite.firmante.username }}{% endif %}</span>
+            </div>
+            {% endif %}
+            
+            {% if tramite.hash_seguridad %}
+            <div class="field">
+                <span class="field-label">Hash de Seguridad (SHA-256):</span>
+                <span class="field-value" style="font-family: monospace; font-size: 10pt;">{{ tramite.hash_seguridad }}</span>
+            </div>
+            {% endif %}
+        </div>
+        
+        {% if tramite.estado == 'FIRMADO' %}
+        <div class="signature-area">
+            <div class="signature-line"></div>
+            <div style="margin-top: 5px; text-align: right;">
+                {% if tramite.firmante %}
+                    {% if tramite.firmante.get_full_name %}{{ tramite.firmante.get_full_name }}{% else %}{{ tramite.firmante.username }}{% endif %}<br>
+                    {{ tramite.firmante.get_rol_display }}
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    
+    <div class="footer">
+        <p>Este documento fue generado electrónicamente por el Sistema Automatizado de Generación de Certificados (SAGEC)</p>
+        <p>Ministerio de Comercio e Industrias (MICI) - República de Panamá</p>
+        {% if tramite.hash_seguridad %}
+        <p style="font-family: monospace; font-size: 9pt;">Hash: {{ tramite.hash_seguridad }}</p>
+        {% endif %}
+    </div>
+</body>
+</html>
+

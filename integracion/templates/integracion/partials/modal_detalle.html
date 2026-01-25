@@ -1,0 +1,79 @@
+<div id="modal-container" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto transform transition-all">
+        <!-- Header -->
+        <div class="flex items-center justify-between p-6 border-b border-gray-100 bg-blue-900 text-white rounded-t-xl">
+            <h3 class="text-xl font-bold">Información Detallada de la Empresa</h3>
+            <button onclick="document.getElementById('modal-container').remove()" class="text-white hover:text-yellow-400 transition-colors">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Content -->
+        <div class="p-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Columna 1 -->
+                <div class="space-y-6">
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">RUC Completo</label>
+                        <p class="text-lg font-semibold text-gray-900">{{ empresa.ruc_completo }}</p>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Razón Social</label>
+                        <p class="text-lg font-semibold text-gray-900">{{ empresa.razon_social }}</p>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Razón Comercial</label>
+                        <p class="text-lg text-gray-700">{{ empresa.razon_comercial }}</p>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Representante Legal</label>
+                        <p class="text-lg text-gray-700">{{ empresa.representante_legal }}</p>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Estatus de Sucursal</label>
+                        <div class="mt-1">
+                            {% include 'components/badge.html' with estado=empresa.estatus %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Columna 2 -->
+                <div class="space-y-6">
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Ubicación</label>
+                        <p class="text-lg text-gray-700">{{ empresa.ubicacion_completa }}</p>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Actividad Comercial</label>
+                        <p class="text-lg text-gray-700">{{ empresa.actividad_comercial }}</p>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Capital Invertido</label>
+                        <p class="text-2xl font-bold text-blue-900">${{ empresa.capital_invertido }}</p>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Fecha Inicio de Operaciones</label>
+                        <p class="text-lg text-gray-700">{{ empresa.fecha_inicio_operaciones }}</p>
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Sucursal</label>
+                        <p class="text-lg font-bold text-blue-700">#{{ empresa.sucursal }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="flex justify-end p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl gap-4">
+            <button onclick="document.getElementById('modal-container').remove()" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors">
+                Cerrar
+            </button>
+            <a href="{% url 'tramites:crear' %}?crear_tramite={{ empresa.ruc_completo }}" class="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors">
+                Crear Trámite
+            </a>
+        </div>
+    </div>
+</div>
+

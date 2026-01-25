@@ -1,0 +1,23 @@
+{% comment %}
+Componente reutilizable para badges de estado
+Uso: {% include 'components/badge.html' with estado=tramite.estado %}
+{% endcomment %}
+
+{% if estado == 'BORRADOR' %}
+    <span class="px-3 py-1 text-xs font-semibold rounded-full bg-gray-200 text-gray-800">Borrador</span>
+{% elif estado == 'PENDIENTE' %}
+    <span class="px-3 py-1 text-xs font-semibold rounded-full bg-orange-200 text-orange-800">Pendiente</span>
+{% elif estado == 'APROBADO' %}
+    <span class="px-3 py-1 text-xs font-semibold rounded-full bg-blue-200 text-blue-800">Aprobado</span>
+{% elif estado == 'FIRMADO' %}
+    <span class="px-3 py-1 text-xs font-semibold rounded-full bg-green-200 text-green-800">Firmado</span>
+{% elif estado == 'RECHAZADO' %}
+    <span class="px-3 py-1 text-xs font-semibold rounded-full bg-red-200 text-red-800">Rechazado</span>
+{% elif estado == 'CANCELADO' %}
+    <span class="px-3 py-1 text-xs font-semibold rounded-full bg-red-500 text-white">Cancelado</span>
+{% elif estado == 'EN SOLICITUD' %}
+    <span class="px-3 py-1 text-xs font-semibold rounded-full bg-blue-500 text-white">En Solicitud</span>
+{% else %}
+    <span class="px-3 py-1 text-xs font-semibold rounded-full bg-gray-300 text-gray-700">{{ estado }}</span>
+{% endif %}
+

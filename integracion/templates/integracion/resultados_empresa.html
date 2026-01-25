@@ -1,0 +1,80 @@
+{% comment %}
+Fragmento HTML que se inyecta vía HTMX con los resultados de búsqueda.
+Actualizado para soportar modal y acciones directas en la tabla.
+{% endcomment %}
+
+<!-- Contenedor para el Modal (vacio por defecto) -->
+<div id="modal-target"></div>
+
+<!-- Tabla de Avisos de Operación -->
+<div class="bg-white shadow-lg rounded-lg p-6 animate-fade-in">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-gray-800">Avisos de Operación Encontrados</h2>
+        <span class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-bold rounded-full">
+            {{ avisos|length }} Registro(s)
+        </span>
+    </div>
+    
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Número de Aviso</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Sucursal</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Razón Comercial</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Razón Social / Dueño</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Estatus</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha Inicio</th>
+                    <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for aviso in avisos %}
+                <tr class="hover:bg-blue-50 transition-colors duration-150">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-900">
+                        {{ aviso.numero_aviso }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-bold">
+                        #{{ aviso.sucursal }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ aviso.razon_comercial }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ aviso.razon_social }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        {% include 'components/badge.html' with estado=aviso.estatus %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {{ aviso.fecha_inicio }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                        <div class="flex items-center justify-center space-x-3">
+                            <!-- Acción Ver (Abre Modal) -->
+                            <button hx-get="{% url 'integracion:detalle_empresa_hx' aviso=aviso.numero_aviso %}" 
+                                    hx-target="#modal-target"
+                                    class="text-blue-600 hover:text-blue-900 font-bold flex items-center group">
+                                <svg class="w-4 h-4 mr-1 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                                Ver
+                            </button>
+                            
+                            <!-- Acción Crear Trámite (Directo) -->
+                            <a href="{% url 'tramites:crear' %}?crear_tramite={{ aviso.ruc_completo }}" 
+                               class="text-green-600 hover:text-green-900 font-bold flex items-center group">
+                                <svg class="w-4 h-4 mr-1 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Crear Trámite
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

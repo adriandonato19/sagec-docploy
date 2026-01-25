@@ -1,4 +1,16 @@
-from .base import *
+# Importar base.py dinámicamente para compatibilidad
+import importlib.util
+from pathlib import Path
+
+settings_dir = Path(__file__).parent
+base_path = settings_dir / 'base.py'
+base_spec = importlib.util.spec_from_file_location('config.settings.base', base_path)
+base_module = importlib.util.module_from_spec(base_spec)
+base_spec.loader.exec_module(base_module)
+# Copiar todas las variables de base.py
+for attr_name in dir(base_module):
+    if not attr_name.startswith('_'):
+        globals()[attr_name] = getattr(base_module, attr_name)
 
 # 1. Blindaje de Sesiones y Cookies
 # Esto evita que las sesiones sean robadas en redes públicas/gubernamentales

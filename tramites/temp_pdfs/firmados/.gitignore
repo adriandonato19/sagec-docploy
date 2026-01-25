@@ -1,0 +1,5 @@
+# Ignorar todos los PDFs firmados
+*.pdf
+# Pero mantener este archivo
+!.gitignore
+

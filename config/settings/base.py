@@ -17,10 +17,10 @@ DJANGO_APPS = [
 ]
 
 LOCAL_APPS = [
-    'modulos.identidad',   # Gestión de usuarios gubernamentales
-    'modulos.tramites',    # Núcleo: Certificados y Oficios
-    'modulos.integracion', # Conexión con Panamá Emprende
-    'modulos.auditoria',   # Trazabilidad inmutable
+    'identidad',   # Gestión de usuarios gubernamentales
+    'tramites',    # Núcleo: Certificados y Oficios
+    'integracion', # Conexión con Panamá Emprende
+    'auditoria',   # Trazabilidad inmutable
 ]
 
 # Librerías de seguridad y utilidades sugeridas
@@ -89,5 +89,10 @@ MEDIA_ROOT = BASE_DIR / 'media' # Aquí se guardarán temporalmente los PDFs
 # 8. Modelo de Usuario Personalizado
 # Define que el sistema use tu modelo de identidad para roles de fiscal/firmante
 AUTH_USER_MODEL = 'identidad.UsuarioMICI'
+
+# Configuración de URLs de autenticación
+LOGIN_URL = 'identidad:login'  # O '/login/'
+LOGIN_REDIRECT_URL = 'integracion:buscador' # A donde ir después de loguearse
+LOGOUT_REDIRECT_URL = 'identidad:login'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

@@ -1,0 +1,295 @@
+{% load tramite_filters %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Certificado Oficial - {{ tramite.numero_referencia }}</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 0;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.4;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        .page-container {
+            position: relative;
+            width: 21.59cm; /* Ancho carta */
+            height: 27.94cm; /* Alto carta */
+            padding-left: 3.2cm; /* Espacio para sidebar */
+            padding-right: 1.8cm;
+            padding-top: 1.8cm;
+            padding-bottom: 2.8cm; /* Espacio para footer */
+            box-sizing: border-box;
+        }
+        
+        /* Sidebar de Verificación (Lateral Izquierdo) */
+        .verification-sidebar {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 2.2cm;
+            height: 100%;
+            background-color: #ffffff;
+            box-sizing: border-box;
+            /* WeasyPrint + transforms: evitar recortes del bloque rotado */
+            overflow: visible;
+        }
+        
+        .sidebar-text-wrap {
+            position: absolute;
+            /* Centro exacto del sidebar (2.2cm / 2) */
+            left: 1.1cm;
+            /*
+             * Colocar el texto justo encima del QR:
+             * bottom = (bottom QR) + (alto QR) + (gap)
+             */
+            bottom: 2.4cm;
+            transform: rotate(-90deg);
+            transform-origin: left bottom;
+            /*
+             * Importante: WeasyPrint calcula mal max-content en algunos casos,
+             * lo que hace que el UUID se envuelva y se vea "horrible".
+             * Forzamos un ancho grande para evitar shrink-to-fit.
+             */
+            width: 20cm;
+        }
+
+        .sidebar-text {
+            font-size: 7.5pt;
+            color: #000;
+            line-height: 1.15;
+            text-align: left;
+            /* Evita que el UUID se parta en varias líneas (como en el modelo) */
+            white-space: nowrap;
+            overflow-wrap: normal;
+            word-break: normal;
+            hyphens: none;
+        }
+
+        .verification-label {
+            font-weight: bold;
+        }
+        
+        .verification-code {
+            font-family: monospace;
+            font-size: 7.5pt;
+            white-space: nowrap;
+            overflow-wrap: normal;
+            word-break: normal;
+            hyphens: none;
+            display: inline-block;
+        }
+        
+        /* Header Institucional */
+        .header-container {
+            display: table;
+            width: 100%;
+        }
+        
+        .header-left {
+            display: table-cell;
+            vertical-align: middle;
+            width: 60%;
+        }
+        
+        .logo-img {
+            height: 2.5cm;
+            width: auto;
+        }
+        
+        /* Contenido */
+        .document-container {
+            padding-left: 1.8cm;
+            height: auto;
+        }
+
+        .document-header {
+            margin-bottom: 0.6cm;
+        }
+        
+        .fecha-doc {
+            margin-bottom: 0.2cm;
+        }
+        
+        .referencia {
+            font-weight: bold;
+        }
+        
+        .destinatario {
+            margin-bottom: 0.6cm;
+        }
+        
+        .destinatario-nombre {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .saludo {
+            margin-bottom: 0.4cm;
+        }
+        
+        .cuerpo {
+            text-align: justify;
+            line-height: 1.4;
+        }
+        
+        .parrafo {
+            margin-bottom: 0.4cm;
+        }
+        
+        /* Área de Firma */
+        .atentamente {
+            margin-top: 0.6cm;
+            margin-bottom: 0.2cm;
+        }
+        
+        .firma-espacio {
+            height: 2.2cm;
+        }
+        
+        .firma-info {
+            line-height: 1.1;
+        }
+        
+        .firma-nombre {
+            font-weight: bold;
+            font-size: 10.5pt;
+        }
+        
+        .firma-cargo {
+            font-size: 9.5pt;
+        }
+        
+        .firma-iniciales {
+            margin-top: 0.4cm;
+            font-size: 8pt;
+            color: #666;
+        }
+        
+        /* Footer Imagen */
+        .footer-image-container {
+            position: absolute;
+            bottom: 0;
+            left: 2.2cm; /* Empieza después del sidebar */
+            right: 0;
+            width: calc(100% - 2.2cm);
+            height: auto;
+            padding-bottom: 0.5cm;  
+        }
+        
+        .footer-img {
+            width: 100%;
+            display: block;
+        }
+
+        .qr-container-sidebar {
+            position: absolute;
+            left: 0.3cm;
+            bottom: 0.5cm;
+            width: 1.6cm;
+            height: 1.6cm;
+            z-index: 20;
+        }
+
+        .qr-img {
+            width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+        <!-- Sidebar de Verificación -->
+        <div class="verification-sidebar">
+            <div class="sidebar-text-wrap">
+                <div class="sidebar-text">
+                    <span class="verification-label">Código de verificación:</span><br>
+                    <span class="verification-code">{{ tramite.uuid }}</span><br>
+                    <span>Electrónico</span>
+                </div>
+            </div>
+            
+            <div class="qr-container-sidebar">
+                <img src="{{ qr_code_data }}" class="qr-img" alt="QR Code">
+            </div>
+        </div>
+        
+        <!-- Header Institucional -->
+        <div class="header-container">
+            <div class="header-left">
+                <img src="{{ logo_path }}" alt="Logo Gobierno Nacional" class="logo-img">
+            </div>
+        </div>
+        
+        <div class="document-container">
+            <!-- Fecha y Referencia -->
+            <div class="document-header">
+                <div class="fecha-doc">Panamá, {{ fecha_emision_formateada }}</div>
+                <div class="referencia">MICI-DGCI-AL-N-N°-[{{ tramite.numero_referencia|default:"XXX" }}]-{{ tramite.fecha_creacion|date:"Y" }}</div>
+            </div>
+            
+            <!-- Destinatario -->
+            <div class="destinatario">
+                <div>Señor</div>
+                <div class="destinatario-nombre">{{ tramite.destinatario|default:"[DESTINATARIO]" }}</div>
+                <div>Ciudad.</div>
+            </div>
+            
+            <!-- Saludo -->
+            <div class="saludo">
+                <p>Respetado Sr. {% if tramite.destinatario %}{{ tramite.destinatario|extraer_nombre_destinatario|slice:":30" }}{% else %}Destinatario{% endif %}:</p>
+            </div>
+            
+            <!-- Cuerpo del Documento -->
+            <div class="cuerpo">
+                <p class="parrafo">
+                    En respuesta a su solicitud recibida en nuestro despacho el <strong>{{ fecha_solicitud_formateada }}</strong>, en la cual solicita autenticación de un certificado de operación no operativo para el Aviso de Operaciones <strong>{{ empresa.numero_aviso|default:"[NÚMERO DE AVISO]" }}</strong>, bajo la razón social <strong>{{ empresa.razon_social|default:"[RAZÓN SOCIAL]" }}</strong>, Razón Comercial <strong>{{ empresa.razon_comercial|default:"[RAZÓN COMERCIAL]" }}</strong> y número de Licencia <strong>{{ empresa.numero_licencia|default:"[NÚMERO DE LICENCIA]" }}</strong>, para un trámite de <strong>{{ tramite.proposito|default:"[PROPÓSITO]" }}</strong>, tenemos a bien manifestar lo siguiente:
+                </p>
+                
+                <p class="parrafo">
+                    La Dirección General de Comercio Interior, amparados por la ley No.5 de 11 de enero de 2007, que agiliza el proceso de apertura de empresas establece otras disposiciones, luego de la revisión correspondiente a nuestros archivos, podemos <span class="text-bold text-uppercase">CERTIFICAR</span> que <span class="text-bold text-uppercase">CONSTA</span> registro del Aviso de Operación: <strong>{{ empresa.numero_aviso|default:"[NÚMERO DE AVISO]" }}</strong>, Número de Licencia: <strong>{{ empresa.numero_licencia|default:"[NÚMERO DE LICENCIA]" }}</strong>, Razón Comercial: <strong>{{ empresa.razon_comercial|default:"[RAZÓN COMERCIAL]" }}</strong>, Representante Legal: <strong>{{ empresa.representante_legal|default:"[REPRESENTANTE LEGAL]" }}</strong>, Razón Social: <strong>{{ empresa.razon_social|default:"[RAZÓN SOCIAL]" }}</strong>, RUC: <strong>{{ empresa.ruc|default:"[RUC]" }}-{{ empresa.dv|default:"[DV]" }}</strong>, Fecha de Inicio de Operaciones: <strong>{{ fecha_inicio_ops_formateada|default:"[FECHA]" }}</strong>, Dirección del Establecimiento: <strong>{{ empresa.ubicacion_completa|default:"[DIRECCIÓN]" }}</strong>, estatus <strong>{{ empresa.estatus|default:"Vigente" }}</strong>.
+                </p>
+                
+                <p class="parrafo">
+                    De lo anterior, adjuntamos documento para su debida constancia, el mismo es válido tal cual lo establece el artículo 2 de la Ley 2 de 5 de febrero de 2013, que reforma disposiciones de la Ley No.5 de 11 de enero de 2007.
+                </p>
+            </div>
+            
+            <!-- Firma (Espacio en Blanco para firma externa) -->
+            <div class="atentamente">
+                <p>Atentamente,</p>
+            </div>
+            
+            <div class="firma-espacio">
+                <!-- Espacio vacío para firma digital externa -->
+            </div>
+            
+            <div class="firma-info">
+                <div class="firma-nombre">
+                    {% if tramite.firmante %}
+                        {{ tramite.firmante.get_full_name|default:tramite.firmante.username }}
+                    {% else %}
+                        [NOMBRE DEL FIRMANTE]
+                    {% endif %}
+                </div>
+                <div class="firma-cargo">Directora General de Comercio Interior</div>
+                <div class="firma-departamento">Ministerio de Comercio e Industrias</div>
+                <div class="firma-iniciales">JG/vch</div>
+            </div>
+        </div>
+        
+        <!-- Footer Imagen -->
+        <div class="footer-image-container">
+            <img src="{{ footer_path }}" class="footer-img" alt="Footer Institucional">
+        </div>
+    </div>
+</body>
+</html>

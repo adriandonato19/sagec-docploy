@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}Registro de Usuario - SAGEC{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto mt-10 mb-10">
+    <div class="bg-white shadow-lg rounded-lg p-8">
+        <h1 class="text-2xl font-bold text-center mb-6 text-gray-800">Registro de Usuario</h1>
+        
+        <form method="post" action="{% url 'identidad:register' %}">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label for="first_name" class="block text-sm font-medium text-gray-700 mb-2">
+                        Nombre
+                    </label>
+                    <input type="text" 
+                           name="first_name" 
+                           id="first_name" 
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           placeholder="Ej: Juan">
+                </div>
+                <div>
+                    <label for="last_name" class="block text-sm font-medium text-gray-700 mb-2">
+                        Apellido
+                    </label>
+                    <input type="text" 
+                           name="last_name" 
+                           id="last_name" 
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                           placeholder="Ej: Pérez">
+                </div>
+            </div>
+
+            <div class="mb-4">
+                <label for="username" class="block text-sm font-medium text-gray-700 mb-2">
+                    Usuario / Email <span class="text-red-500">*</span>
+                </label>
+                <input type="text" 
+                       name="username" 
+                       id="username" 
+                       required
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                       placeholder="usuario@gob.pa">
+            </div>
+
+            <div class="mb-4">
+                <label for="cedula" class="block text-sm font-medium text-gray-700 mb-2">
+                    Cédula <span class="text-red-500">*</span>
+                </label>
+                <input type="text" 
+                       name="cedula" 
+                       id="cedula" 
+                       required
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                       placeholder="Ej: 8-888-888">
+            </div>
+
+            <div class="mb-4">
+                <label for="rol" class="block text-sm font-medium text-gray-700 mb-2">
+                    Rol en el Sistema <span class="text-red-500">*</span>
+                </label>
+                <select name="rol" id="rol" required
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    {% for value, label in roles %}
+                        <option value="{{ value }}">{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="mb-4">
+                <label for="institucion" class="block text-sm font-medium text-gray-700 mb-2">
+                    Institución
+                </label>
+                <input type="text" 
+                       name="institucion" 
+                       id="institucion" 
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                       placeholder="Ej: Ministerio Público">
+            </div>
+
+            <div class="mb-6">
+                <label for="password" class="block text-sm font-medium text-gray-700 mb-2">
+                    Contraseña <span class="text-red-500">*</span>
+                </label>
+                <input type="password" 
+                       name="password" 
+                       id="password" 
+                       required
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                       placeholder="••••••••">
+            </div>
+            
+            <button type="submit" 
+                    class="w-full bg-blue-900 text-white py-2 px-4 rounded-lg hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium mb-4">
+                Registrarse
+            </button>
+            
+            <div class="text-center text-sm">
+                <span class="text-gray-600">¿Ya tienes una cuenta?</span>
+                <a href="{% url 'identidad:login' %}" class="text-blue-900 font-bold hover:underline">Inicia Sesión</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+

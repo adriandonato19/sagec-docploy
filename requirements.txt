@@ -7,6 +7,8 @@ requests
 # PDF Generation & Signing
 WeasyPrint
 pyhanko[crypto]
+pillow # Para procesar imágenes en la generación de PDFs.
+qrcode # Para generar códigos QR.
 
 # Frontend & UI
 django-htmx
@@ -14,4 +16,7 @@ django-widget-tweaks
 
 # Security
 django-axes  # Protección fuerza bruta
-# django-csp # (Opcional, requiere configuración fina)
+django-csp # Para gestionar Content Security Policy (evitar XSS).
+django-encrypted-model-fields # Para cifrar datos sensibles en la BD (ej. tokens de API).
+django-two-factor-auth # Para implementar el 2FA obligatorio de Fiscales y Firmantes.
+django-otp # Para implementar el 2FA obligatorio de Fiscales y Firmantes.

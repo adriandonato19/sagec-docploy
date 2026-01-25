@@ -1,0 +1,222 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SAGEC - Sistema Automatizado de Generación de Certificados{% endblock %}</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- HTMX para Django CSRF -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <script>
+        document.body.addEventListener('htmx:configRequest', (event) => {
+            event.detail.headers['X-CSRFToken'] = document.querySelector('[name=csrf-token]').content;
+        });
+    </script>
+    
+    <style>
+        .sidebar-active {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-left: 4px solid #fbbf24; /* yellow-400 */
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+    <!-- Navbar (Top) -->
+    <nav class="bg-blue-900 text-white shadow-md z-50 fixed w-full top-0 h-16 flex items-center">
+        <div class="px-4 sm:px-6 lg:px-8 w-full flex justify-between items-center">
+            <div class="flex items-center">
+                <button id="mobile-menu-button" class="md:hidden mr-4">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+                    </svg>
+                </button>
+                <a href="{% url 'tramites:bandeja_admin' %}" class="flex items-center space-x-3">
+                    <img src="{% static 'img/logo_oficial.png' %}" alt="Logo Gobierno Nacional" class="h-10 w-auto object-contain">
+                    <span class="text-xl font-bold tracking-tight">
+                        SAGEC <span class="text-yellow-400">- MICI</span>
+                    </span>
+                </a>
+            </div>
+            <div class="flex items-center space-x-4">
+                {% if user.is_authenticated %}
+                    <div class="hidden sm:flex flex-col items-end mr-2">
+                        <span class="text-xs font-semibold uppercase opacity-75">{{ user.get_rol_display }}</span>
+                        <span class="text-sm font-medium">{{ user.get_full_name|default:user.username }}</span>
+                    </div>
+                    <div class="relative">
+                        <button id="user-menu-button" type="button" class="flex items-center focus:outline-none" aria-haspopup="menu" aria-expanded="false">
+                            <div class="w-10 h-10 rounded-full bg-blue-700 flex items-center justify-center text-white font-bold border-2 border-blue-400">
+                                {{ user.username|slice:":1"|upper }}
+                            </div>
+                        </button>
+                        <!-- Dropdown simple -->
+                        <div id="user-menu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden text-gray-800" role="menu" aria-labelledby="user-menu-button">
+                            <a href="{% url 'identidad:perfil' %}" class="block px-4 py-2 text-sm hover:bg-gray-100">Mi Perfil</a>
+                            <form method="post" action="{% url 'identidad:logout' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 text-red-600">Cerrar Sesión</button>
+                            </form>
+                        </div>
+                    </div>
+                {% else %}
+                    <a href="{% url 'identidad:login' %}" class="bg-yellow-500 hover:bg-yellow-600 text-blue-900 px-4 py-2 rounded-lg font-bold transition duration-200">
+                        Iniciar Sesión
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="flex flex-1 pt-16 h-screen">
+        {% if user.is_authenticated %}
+        <!-- Sidebar -->
+        <aside id="sidebar" class="bg-blue-950 text-white w-64 flex-shrink-0 hidden md:flex flex-col fixed h-full z-40 transition-all duration-300 transform md:translate-x-0">
+            <div class="flex-1 py-6">
+                <nav class="px-2 space-y-1">
+                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Principal</p>
+                    
+                    <a href="{% url 'tramites:bandeja_admin' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-blue-900 transition-colors {% if request.resolver_match.url_name == 'bandeja_admin' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        Bandeja de Solicitudes
+                    </a>
+
+                    <a href="{% url 'integracion:buscador' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-blue-900 transition-colors {% if request.resolver_match.url_name == 'buscador' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        Consultar Empresa
+                    </a>
+
+                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2">Mis Documentos</p>
+
+                    <a href="{% url 'tramites:mis_certificados' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-blue-900 transition-colors {% if request.resolver_match.url_name == 'mis_certificados' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Mis Certificados
+                    </a>
+
+                    <a href="{% url 'tramites:mis_oficios' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-blue-900 transition-colors {% if request.resolver_match.url_name == 'mis_oficios' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        Mis Oficios
+                    </a>
+
+                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2">Sistema</p>
+
+                    <a href="{% url 'identidad:perfil' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-blue-900 transition-colors {% if request.resolver_match.url_name == 'perfil' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        Configuración
+                    </a>
+                </nav>
+            </div>
+            <div class="p-4 bg-blue-950 border-t border-blue-900 text-xs text-gray-400">
+                SAGEC v1.0.0
+            </div>
+        </aside>
+        {% endif %}
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto {% if user.is_authenticated %}md:ml-64{% endif %} bg-gray-100">
+            <div class="p-4 sm:p-6 lg:p-8">
+                <!-- Mensajes -->
+                {% if messages %}
+                    <div class="mb-6">
+                        {% for message in messages %}
+                            <div class="mb-4 p-4 rounded-lg shadow-sm border {% if message.tags == 'error' %}bg-red-50 text-red-800 border-red-200{% elif message.tags == 'success' %}bg-green-50 text-green-800 border-green-200{% elif message.tags == 'warning' %}bg-yellow-50 text-yellow-800 border-yellow-200{% else %}bg-blue-50 text-blue-800 border-blue-200{% endif %}">
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                        {% if message.tags == 'success' %}
+                                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                        {% else %}
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                                        {% endif %}
+                                    </svg>
+                                    <span class="text-sm font-medium">{{ message }}</span>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- Content -->
+                {% block content %}{% endblock %}
+            </div>
+            
+            <footer class="bg-white border-t border-gray-200 py-4 mt-8">
+                <div class="px-4 sm:px-6 lg:px-8 text-center text-xs text-gray-500">
+                    <p>&copy; 2025 Ministerio de Comercio e Industrias (MICI) - SAGEC</p>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        // Toggle Mobile Menu
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const sidebar = document.getElementById('sidebar');
+        
+        if (mobileMenuButton && sidebar) {
+            mobileMenuButton.addEventListener('click', () => {
+                sidebar.classList.toggle('hidden');
+                sidebar.classList.toggle('flex');
+                sidebar.classList.toggle('w-full');
+                sidebar.classList.toggle('inset-0');
+            });
+        }
+
+        // $Reusable$
+        // Dropdown: toggle on click + close on outside click / Escape
+        function setupClickOutsideDropdown({ buttonEl, menuEl }) {
+            if (!buttonEl || !menuEl) return;
+
+            const setOpen = (isOpen) => {
+                menuEl.classList.toggle('hidden', !isOpen);
+                buttonEl.setAttribute('aria-expanded', String(isOpen));
+            };
+
+            const toggle = () => setOpen(menuEl.classList.contains('hidden'));
+
+            buttonEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggle();
+            });
+
+            menuEl.addEventListener('click', (e) => {
+                // Keep menu open when interacting with it
+                e.stopPropagation();
+            });
+
+            document.addEventListener('click', (e) => {
+                const target = e.target;
+                const clickedInside = buttonEl.contains(target) || menuEl.contains(target);
+                if (!clickedInside) setOpen(false);
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') setOpen(false);
+            });
+        }
+
+        setupClickOutsideDropdown({
+            buttonEl: document.getElementById('user-menu-button'),
+            menuEl: document.getElementById('user-menu'),
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
