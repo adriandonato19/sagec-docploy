@@ -9,11 +9,12 @@ from django.utils import timezone
 from django.conf import settings
 from pathlib import Path
 import os
-from .models import Tramite
+from .models import Tramite, PreguntaOficio
 from .services.generador_pdf import generar_pdf_tramite, calcular_hash_pdf
 from identidad.decorators import require_rol
 from identidad.models import UsuarioMICI
 from integracion.services import buscar_empresa
+from integracion.adapters import normalizar_datos_empresa, construir_ubicacion_completa
 from auditoria.services import registrar_evento, obtener_ip_cliente
 from auditoria.models import BitacoraEvento
 
@@ -87,36 +88,42 @@ def bandeja_admin_view(request):
 @login_required
 @require_http_methods(["GET", "POST"])
 def crear_tramite_view(request):
-    """Crear un nuevo trámite desde la búsqueda de empresa."""
+    """Página unificada para crear trámites (certificados y oficios)."""
     if request.method == 'POST':
-        ruc_full = request.POST.get('ruc', '').strip()
-        # Limpiar el RUC si trae sucursal para la búsqueda técnica
-        ruc = "-".join(ruc_full.split("-")[:3]) 
-
         tipo_documento = request.POST.get('tipo_documento', 'CERTIFICADO')
         destinatario = request.POST.get('destinatario', '').strip()
         proposito = request.POST.get('proposito', '').strip()
+        objetivo_solicitud = request.POST.get('objetivo_solicitud', '').strip()
         fecha_solicitud_str = request.POST.get('fecha_solicitud', '').strip()
-        
-        if not ruc:
-            messages.error(request, 'Debe proporcionar un RUC.')
-            return redirect('integracion:buscador')
-        
-        # Validar campos requeridos para certificados
-        if tipo_documento == 'CERTIFICADO':
-            if not destinatario:
-                messages.error(request, 'El destinatario es obligatorio para certificados.')
-                return redirect('tramites:crear')
-            if not proposito:
-                messages.error(request, 'El propósito es obligatorio para certificados.')
-                return redirect('tramites:crear')
-        
-        # Buscar datos de la empresa
-        resultado = buscar_empresa(ruc)
-        if not resultado:
-            messages.error(request, 'No se encontró información para el RUC proporcionado.')
-            return redirect('integracion:buscador')
-        
+        numero_carpetilla = request.POST.get('numero_carpetilla', '').strip()
+        numero_oficio_externo = request.POST.get('numero_oficio_externo', '').strip()
+        titulo_destinatario = request.POST.get('titulo_destinatario', '').strip()
+        cargo_destinatario = request.POST.get('cargo_destinatario', '').strip()
+        institucion_destinatario = request.POST.get('institucion_destinatario', '').strip()
+
+        # Empresas del carrito en sesión
+        empresas_cart = request.session.get('empresas_cart', [])
+
+        # Oficios requieren al menos 1 empresa
+        if tipo_documento == 'OFICIO' and not empresas_cart:
+            messages.error(request, 'Debe agregar al menos una empresa para crear un oficio.')
+            return redirect('consultar_tramite')
+
+        # Oficios requieren carpetilla y oficio externo
+        if tipo_documento == 'OFICIO':
+            if not numero_carpetilla:
+                messages.error(request, 'El número de carpetilla es obligatorio para oficios.')
+                return redirect('consultar_tramite')
+            if not numero_oficio_externo:
+                messages.error(request, 'El número de oficio externo es obligatorio para oficios.')
+                return redirect('consultar_tramite')
+
+        # Preguntas: filtrar vacías, permitir lista vacía
+        preguntas_textos = [t.strip() for t in request.POST.getlist('preguntas[]') if t.strip()]
+
+        empresa_snapshot = empresas_cart  # siempre lista
+        origen_consulta = ', '.join(e.get('ruc_completo', e.get('ruc', '')) for e in empresas_cart) if empresas_cart else ''
+
         # Parsear fecha de solicitud
         fecha_solicitud = None
         if fecha_solicitud_str:
@@ -125,67 +132,72 @@ def crear_tramite_view(request):
                 fecha_solicitud = datetime.strptime(fecha_solicitud_str, '%Y-%m-%d').date()
             except ValueError:
                 pass
-        
-        # Crear trámite
+
+        # Crear trámite (sin generar PDF)
         tramite = Tramite.objects.create(
             tipo_documento=tipo_documento,
             solicitante=request.user,
-            empresa_snapshot=resultado['detalle'],
-            origen_consulta=ruc,
+            empresa_snapshot=empresa_snapshot,
+            origen_consulta=origen_consulta,
             numero_referencia=f"{tipo_documento[:3]}-{timezone.now().strftime('%Y%m%d')}-{Tramite.objects.count() + 1}",
             estado=Tramite.BORRADOR,
             destinatario=destinatario,
             proposito=proposito,
-            fecha_solicitud=fecha_solicitud
+            objetivo_solicitud=objetivo_solicitud,
+            fecha_solicitud=fecha_solicitud,
+            numero_carpetilla=numero_carpetilla,
+            numero_oficio_externo=numero_oficio_externo,
+            titulo_destinatario=titulo_destinatario,
+            cargo_destinatario=cargo_destinatario,
+            institucion_destinatario=institucion_destinatario,
         )
-        
-        # Generar PDF inmediatamente al crear el trámite
-        try:
-            pdf_bytesio = generar_pdf_tramite(tramite)
-            pdf_content = pdf_bytesio.read()
-            
-            # Crear carpeta temporal si no existe
-            temp_pdf_dir = Path(__file__).parent / 'temp_pdfs'
-            temp_pdf_dir.mkdir(exist_ok=True)
-            
-            # Guardar PDF en carpeta temporal
-            pdf_filename = f'tramite_{tramite.uuid}.pdf'
-            pdf_path = temp_pdf_dir / pdf_filename
-            
-            with open(pdf_path, 'wb') as f:
-                f.write(pdf_content)
-            
-            # Guardar ruta en el modelo
-            tramite.archivo_pdf.name = f'temp_pdfs/{pdf_filename}'
-            tramite.save()
-            
-        except Exception as e:
-            # Si falla la generación del PDF, continuar pero registrar el error
-            messages.warning(request, f'Trámite creado pero hubo un problema al generar el PDF: {str(e)}')
-        
-        # Registrar evento de creación (el signal también lo registrará, pero aquí tenemos más contexto)
+
+        # Guardar preguntas
+        for i, texto in enumerate(preguntas_textos):
+            PreguntaOficio.objects.create(
+                tramite=tramite,
+                orden=i,
+                texto_pregunta=texto,
+            )
+
+        # Limpiar carrito de sesión
+        request.session.pop('empresas_cart', None)
+
+        # Registrar evento de creación
         ip_cliente = obtener_ip_cliente(request)
         registrar_evento(
             tipo_evento=BitacoraEvento.CREACION_TRAMITE,
             actor=request.user,
             ip_origen=ip_cliente,
             recurso=tramite,
-            descripcion=f'Creación de {tramite.get_tipo_documento_display()} - RUC: {ruc}',
-            metadata={'tipo_documento': tipo_documento, 'ruc': ruc}
+            descripcion=f'Creación de {tramite.get_tipo_documento_display()} - {origen_consulta or "sin empresa"}',
+            metadata={'tipo_documento': tipo_documento, 'origen': origen_consulta}
         )
-        
-        messages.success(request, f'Trámite creado correctamente.')
+
+        messages.success(request, 'Trámite creado correctamente.')
         return redirect('tramites:detalle', id=tramite.uuid)
-    
-    # GET: mostrar formulario de creación
-    ruc = request.GET.get('crear_tramite', '')
-    resultado = None
-    if ruc:
-        resultado = buscar_empresa(ruc)
-    
-    return render(request, 'tramites/crear.html', {
-        'ruc': ruc,
-        'empresa': resultado['detalle'] if resultado else None,
+
+    # GET: limpiar carrito y mostrar selector de tipo
+    request.session.pop('empresas_cart', None)
+    return render(request, 'tramites/consultar.html')
+
+
+@login_required
+@require_http_methods(["GET"])
+def formulario_tipo_hx(request):
+    """Retorna el formulario parcial según tipo de documento (HTMX)."""
+    tipo_documento = request.GET.get('tipo', 'CERTIFICADO')
+    if tipo_documento not in ('CERTIFICADO', 'OFICIO'):
+        tipo_documento = 'CERTIFICADO'
+
+    tipo_labels = {'CERTIFICADO': 'Certificado', 'OFICIO': 'Oficio'}
+    empresas_cart = request.session.get('empresas_cart', [])
+
+    return render(request, 'tramites/partials/formulario_tipo.html', {
+        'tipo_documento': tipo_documento,
+        'tipo_label': tipo_labels[tipo_documento],
+        'empresas_cart': empresas_cart,
+        'today': timezone.now().strftime('%Y-%m-%d'),
     })
 
 
@@ -258,8 +270,14 @@ def detalle_view(request, id):
             messages.error(request, 'No puede enviar este trámite.')
         return redirect('tramites:detalle', id=tramite.uuid)
     
+    # Contexto de preguntas
+    preguntas = tramite.preguntas.all()
+    todas_respondidas = all(p.esta_respondida for p in preguntas) if preguntas else True
+
     return render(request, 'tramites/detalle.html', {
-        'tramite': tramite
+        'tramite': tramite,
+        'preguntas': preguntas,
+        'todas_respondidas': todas_respondidas,
     })
 
 
@@ -289,10 +307,25 @@ def aprobar_view(request, id):
             metadata={'estado_anterior': estado_anterior, 'revisor': request.user.username}
         )
         
+        # Generar PDF al aprobar
+        pdf_bytesio = generar_pdf_tramite(tramite)
+        pdf_content = pdf_bytesio.read()
+
+        temp_pdf_dir = Path(__file__).parent / 'temp_pdfs'
+        temp_pdf_dir.mkdir(exist_ok=True)
+        pdf_filename = f'tramite_{tramite.uuid}.pdf'
+        pdf_path = temp_pdf_dir / pdf_filename
+
+        with open(pdf_path, 'wb') as f:
+            f.write(pdf_content)
+
+        tramite.archivo_pdf.name = f'temp_pdfs/{pdf_filename}'
+        tramite.save()
+
         messages.success(request, 'Trámite aprobado correctamente.')
     except Exception as e:
         messages.error(request, str(e))
-    
+
     return redirect('tramites:detalle', id=tramite.uuid)
 
 
@@ -486,3 +519,133 @@ def vista_previa_pdf_hx(request, id):
     return render(request, 'tramites/partials/modal_vista_previa_pdf.html', {
         'tramite': tramite
     })
+
+
+@login_required
+@require_rol(UsuarioMICI.TRABAJADOR, UsuarioMICI.DIRECTOR)
+@require_http_methods(["POST"])
+def responder_preguntas_hx(request, id):
+    """Guardar respuestas a preguntas de un oficio (HTMX)."""
+    tramite = get_object_or_404(Tramite, uuid=id)
+
+    if tramite.estado != Tramite.PENDIENTE:
+        return HttpResponse('<div class="p-4 text-red-600">El trámite no está en estado pendiente.</div>', status=400)
+
+    preguntas = tramite.preguntas.all()
+    for pregunta in preguntas:
+        respuesta = request.POST.get(f'respuesta_{pregunta.id}', '').strip()
+        if respuesta:
+            pregunta.texto_respuesta = respuesta
+            pregunta.respondida_por = request.user
+            pregunta.fecha_respuesta = timezone.now()
+            pregunta.save()
+
+    preguntas = tramite.preguntas.all()
+    todas_respondidas = all(p.esta_respondida for p in preguntas)
+
+    return render(request, 'tramites/partials/preguntas_detalle.html', {
+        'tramite': tramite,
+        'preguntas': preguntas,
+        'todas_respondidas': todas_respondidas,
+    })
+
+
+@login_required
+@require_rol(UsuarioMICI.TRABAJADOR, UsuarioMICI.DIRECTOR)
+@require_http_methods(["POST"])
+def responder_solicitud_hx(request, id):
+    """Guardar respuesta de solicitud (HTMX)."""
+    tramite = get_object_or_404(Tramite, uuid=id)
+
+    if tramite.estado != Tramite.PENDIENTE:
+        return HttpResponse('<div class="p-4 text-red-600">El trámite no está en estado pendiente.</div>', status=400)
+
+    tramite.respuesta_solicitud = request.POST.get('respuesta_solicitud', '').strip()
+    tramite.save(update_fields=['respuesta_solicitud'])
+
+    preguntas = tramite.preguntas.all()
+    todas_respondidas = all(p.esta_respondida for p in preguntas) if preguntas else True
+
+    return render(request, 'tramites/partials/respuesta_solicitud_detalle.html', {
+        'tramite': tramite,
+        'preguntas': preguntas,
+        'todas_respondidas': todas_respondidas,
+    })
+
+
+@login_required
+@require_http_methods(["POST"])
+def agregar_empresa_hx(request):
+    """Agregar todos los avisos de un RUC al carrito de sesión (HTMX)."""
+    ruc_input = request.POST.get('ruc_empresa', '').strip()
+    ruc = "-".join(ruc_input.split("-")[:3])
+
+    if not ruc:
+        return HttpResponse('<div class="p-2 text-red-600 text-sm">Debe ingresar un RUC.</div>', status=400)
+
+    resultado = buscar_empresa(ruc)
+    if not resultado:
+        return HttpResponse('<div class="p-2 text-red-600 text-sm">No se encontró empresa con ese RUC.</div>', status=404)
+
+    empresas_cart = request.session.get('empresas_cart', [])
+
+    # Normalizar TODOS los resultados raw
+    nuevas_empresas = []
+    for raw in resultado['resultados_raw']:
+        emp = normalizar_datos_empresa(raw)
+        emp['ubicacion_completa'] = construir_ubicacion_completa(emp)
+        nuevas_empresas.append(emp)
+
+    # Dedup por numero_aviso
+    avisos_en_cart = {e.get('numero_aviso') for e in empresas_cart}
+    agregados = 0
+    for emp in nuevas_empresas:
+        if emp.get('numero_aviso') not in avisos_en_cart:
+            empresas_cart.append(emp)
+            avisos_en_cart.add(emp.get('numero_aviso'))
+            agregados += 1
+
+    if agregados == 0:
+        return HttpResponse('<div class="p-2 text-yellow-600 text-sm">Todos los avisos de este RUC ya fueron agregados.</div>', status=400)
+
+    request.session['empresas_cart'] = empresas_cart
+
+    response = render(request, 'tramites/partials/lista_empresas_cart.html', {
+        'empresas_cart': empresas_cart,
+    })
+    response['HX-Trigger'] = 'empresas-changed'
+    return response
+
+
+@login_required
+@require_http_methods(["POST"])
+def remover_empresa_por_ruc_hx(request):
+    """Remover una empresa del carrito de sesión por RUC (HTMX)."""
+    ruc_empresa = request.POST.get('ruc_empresa', '').strip()
+    empresas_cart = request.session.get('empresas_cart', [])
+
+    empresas_cart = [e for e in empresas_cart if e.get('ruc_completo') != ruc_empresa]
+    request.session['empresas_cart'] = empresas_cart
+
+    response = render(request, 'tramites/partials/lista_empresas_cart.html', {
+        'empresas_cart': empresas_cart,
+    })
+    response['HX-Trigger'] = 'empresas-changed'
+    return response
+
+
+@login_required
+@require_http_methods(["DELETE"])
+def remover_empresa_hx(request, index):
+    """Remover una empresa del carrito de sesión por índice (HTMX)."""
+    empresas_cart = request.session.get('empresas_cart', [])
+
+    if 0 <= index < len(empresas_cart):
+        empresas_cart.pop(index)
+        request.session['empresas_cart'] = empresas_cart
+
+    response = render(request, 'tramites/partials/lista_empresas_cart.html', {
+        'empresas_cart': empresas_cart,
+    })
+    response['HX-Trigger'] = 'empresas-changed'
+    return response

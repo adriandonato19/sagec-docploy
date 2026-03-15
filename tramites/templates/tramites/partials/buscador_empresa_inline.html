@@ -1,0 +1,31 @@
+{% comment %}
+Buscador de empresa inline para usar dentro del formulario de creación de trámite.
+Busca por RUC usando el endpoint HTMX existente de integracion.
+{% endcomment %}
+
+<div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+    <label class="block text-sm font-medium text-gray-700 mb-2">Buscar empresa por Cédula, RUC, Nombre Comercial o Razon Social</label>
+    <div class="flex gap-2 mb-3">
+        <input type="text"
+               id="ruc_empresa_input"
+               name="ruc_empresa"
+               placeholder="Buscar por RUC (ej: 573584-1-447039)"
+               hx-get="{% url 'integracion:api_search' %}"
+               hx-trigger="keyup changed delay:500ms"
+               hx-target="#resultados-empresa-inline"
+               hx-swap="innerHTML"
+               hx-indicator="#buscador-spinner"
+               class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+        <button type="button"
+                hx-post="{% url 'tramites:agregar_empresa_hx' %}"
+                hx-target="#empresas-cart"
+                hx-swap="outerHTML"
+                hx-include="#ruc_empresa_input"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 whitespace-nowrap text-sm">
+            Agregar
+        </button>
+    </div>
+    <span id="buscador-spinner" class="htmx-indicator text-sm text-gray-500">Buscando...</span>
+    <div id="resultados-empresa-inline" class="mt-3"></div>
+    <div id="empresas-cart-error"></div>
+</div>

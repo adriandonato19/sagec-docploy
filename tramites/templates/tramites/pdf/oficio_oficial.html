@@ -3,12 +3,23 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Certificado Oficial - {{ tramite.numero_referencia }}</title>
+    <title>Oficio Oficial - {{ tramite.numero_referencia }}</title>
     <style>
         @page {
             size: letter;
             /* top  right  bottom  left(sidebar 2.2cm + gap 1cm) */
             margin: 1.8cm 1.8cm 2.8cm 3.2cm;
+
+            @top-center {
+                content: element(page-header);
+            }
+        }
+
+        /* Primera página: sin header repetido (ya lo tiene en flujo) */
+        @page :first {
+            @top-center {
+                content: none;
+            }
         }
 
         body {
@@ -22,15 +33,13 @@
 
         /* ============================================================
            SIDEBAR — position:fixed = se repite en CADA página
-           Coordenadas relativas al page area (dentro de @page margins).
-           Offsets negativos para posicionar en el margen de página.
            ============================================================ */
         .verification-sidebar {
             position: fixed;
-            left: -3.2cm;   /* page-area left − margin-left = borde izquierdo de página */
-            top: -1.8cm;    /* page-area top  − margin-top  = borde superior de página */
+            left: -3.2cm;
+            top: -1.8cm;
             width: 2.2cm;
-            height: 27.94cm; /* alto total de página letter */
+            height: 27.94cm;
             background-color: #ffffff;
             overflow: visible;
         }
@@ -85,19 +94,50 @@
 
         /* ============================================================
            FOOTER — position:fixed = se repite en CADA página
-           bottom negativo para llegar al margen inferior de página.
-           left: -1cm = 2.2cm desde borde izquierdo (después del sidebar).
            ============================================================ */
         .footer-image-container {
             position: fixed;
-            left: -1cm;       /* 2.2cm(sidebar) − 3.2cm(margin-left) */
-            bottom: -2.3cm;   /* 0.5cm arriba del borde físico inferior */
-            width: 19.39cm;   /* 21.59cm(ancho página) − 2.2cm(sidebar) */
+            left: -1cm;
+            bottom: -2.3cm;
+            width: 19.39cm;
         }
 
         .footer-img {
             width: 100%;
             display: block;
+        }
+
+        /* ============================================================
+           RUNNING HEADER — para páginas 2+ (via @page @top-center)
+           ============================================================ */
+        .running-header {
+            position: running(page-header);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            padding-bottom: 0.3cm;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 0.3cm;
+        }
+
+        .running-header .logo-small {
+            height: 1.2cm;
+            width: auto;
+        }
+
+        .running-header .page-info {
+            font-size: 8pt;
+            color: #666;
+            text-align: right;
+        }
+
+        .running-header .page-info .page-number::after {
+            content: counter(page) " de " counter(pages);
+        }
+
+        .running-header .page-info .ref-text {
+            font-size: 7pt;
         }
 
         /* ============================================================
@@ -141,11 +181,21 @@
 
         .destinatario {
             margin-bottom: 0.6cm;
+            line-height: 1.3;
         }
 
         .destinatario-nombre {
             font-weight: bold;
             text-transform: uppercase;
+        }
+
+        .destinatario-institucion {
+            font-weight: bold;
+        }
+
+        .destinatario-esd {
+            margin-top: 0.2cm;
+            letter-spacing: 0.3em;
         }
 
         .saludo {
@@ -164,6 +214,29 @@
         /* Evitar que un bloque de empresa se parta entre páginas */
         .empresa-bloque {
             page-break-inside: avoid;
+        }
+
+        /* Lista de empresas bullet */
+        .empresas-lista {
+            margin-top: 0.3cm;
+            margin-bottom: 0.3cm;
+        }
+
+        .empresas-lista ul {
+            list-style-type: disc;
+            padding-left: 1.2cm;
+            margin: 0;
+        }
+
+        .empresas-lista li {
+            margin-bottom: 0.3cm;
+            page-break-inside: avoid;
+        }
+
+        .empresa-nombre-header {
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 0.1cm;
         }
 
         /* Evitar que la firma se parta entre páginas */
@@ -199,9 +272,19 @@
             font-size: 8pt;
             color: #666;
         }
+
     </style>
 </head>
 <body>
+    <!-- Running header (aparece en páginas 2+ vía @page @top-center) -->
+    <div class="running-header">
+        <img src="{{ logo_path }}" alt="Logo Gobierno Nacional" class="logo-small">
+        <div class="page-info">
+            <div class="page-number"></div>
+            <div class="ref-text">Ref: {{ tramite.numero_referencia|default:"" }}</div>
+        </div>
+    </div>
+
     <!-- Sidebar de Verificación (se repite en cada página) -->
     <div class="verification-sidebar">
         <div class="sidebar-text-wrap">
@@ -237,28 +320,41 @@
             <div class="referencia">MICI-DGCI-AL-N-N°-[{{ tramite.numero_referencia|default:"XXX" }}]-{{ tramite.fecha_creacion|date:"Y" }}</div>
         </div>
 
-        <!-- Destinatario -->
+        <!-- Destinatario (formato detallado para oficio) -->
         <div class="destinatario">
-            <div>Estimado(a)</div>
+            {% if tramite.titulo_destinatario %}<div>{{ tramite.titulo_destinatario }}</div>{% endif %}
             <div class="destinatario-nombre">{{ tramite.destinatario|default:"[DESTINATARIO]" }}</div>
+            {% if tramite.cargo_destinatario %}<div>{{ tramite.cargo_destinatario }}</div>{% endif %}
+            {% if tramite.institucion_destinatario %}<div class="destinatario-institucion">{{ tramite.institucion_destinatario }}</div>{% endif %}
+            <div class="destinatario-esd">E.&nbsp;&nbsp;S.&nbsp;&nbsp;D.</div>
         </div>
 
-        <!-- Párrafo introductorio -->
+        <!-- Saludo -->
+        <div class="saludo">
+            <p>Estimada {{ tramite.titulo_destinatario }} {{ tramite.destinatario|extraer_nombre_destinatario }}:</p>
+        </div>
+
+        <!-- Párrafo introductorio (formato oficio) -->
         <div class="cuerpo">
             <p class="parrafo">
-                Reciba un cordial saludo, me dirijo a usted en ocasión de dar respuesta a la nota presentada a este despacho el <strong>{{ fecha_solicitud_formateada }}</strong>, en la cual solicita: <strong>{{ tramite.objetivo_solicitud|default:"[OBJETIVO DE LA SOLICITUD]" }}</strong>{% if tramite.proposito %}, con el objetivo de <strong>{{ tramite.proposito }}</strong>{% endif %}.
+                En atención al Oficio No. <strong>{{ tramite.numero_oficio_externo|default:"[N° OFICIO]" }}</strong>, Carpeta No. <strong>{{ tramite.numero_carpetilla|default:"[N° CARPETILLA]" }}</strong>, con fecha del <strong>{{ fecha_solicitud_formateada }}</strong>, y recibido en nuestro despacho el <strong>{{ fecha_recibido_formateada|default:fecha_solicitud_formateada }}</strong>, suscrito por su persona mediante la cual nos solicita <strong>{{ tramite.objetivo_solicitud|default:"[OBJETIVO DE LA SOLICITUD]" }}</strong>, por lo cual, en tal sentido tenemos a bien manifestarle lo siguiente:
             </p>
 
             <!-- Párrafo de certificación -->
             <p class="parrafo">
-                La Dirección General de Comercio Interior, amparados por la Ley No.5 de 11 de enero de 2007, que agiliza el proceso de apertura de empresas y establece otras disposiciones, luego de la revisión correspondiente a nuestros archivos, podemos <strong>CERTIFICAR</strong> que <strong>CONSTA</strong> registro de lo siguiente:
+                La Dirección General de Comercio Interior, amparados por la Ley No.5 de 11 de enero de 2007, que agiliza el proceso de apertura de empresas y establece otras disposiciones, luego de la revisión correspondiente a nuestros archivos y al sistema <strong>www.panamaemprende.gob.pa</strong>, podemos <strong>CERTIFICAR</strong> que <strong>CONSTA</strong> registro de lo siguiente:
             </p>
 
-            <!-- Bloque de empresas (dinámico) -->
+            <!-- Bloque de empresas (formato bullet list para oficio) -->
             {% for emp in empresas %}
-            <p class="parrafo empresa-bloque">
-                Aviso de Operación: <strong>{{ emp.numero_aviso }}</strong>{% if emp.numero_licencia %}, Número de Licencia: <strong>{{ emp.numero_licencia }}</strong>{% endif %}{% if emp.razon_comercial %}, Razón Comercial: <strong>{{ emp.razon_comercial }}</strong>{% endif %}{% if emp.representante_legal %}, Representante Legal: <strong>{{ emp.representante_legal }}</strong>{% endif %}{% if emp.cedula_representante %}, Cédula de Representante Legal: <strong>{{ emp.cedula_representante }}</strong>{% endif %}{% if emp.razon_social %}, Razón Social: <strong>{{ emp.razon_social }}</strong>{% endif %}{% if emp.ruc %}, RUC: <strong>{{ emp.ruc }}{% if emp.dv %}-{{ emp.dv }}{% endif %}</strong>{% endif %}{% if emp.fecha_inicio_operaciones %}, Fecha de Inicio de Operaciones: <strong>{{ emp.fecha_inicio_operaciones_formateada|default:emp.fecha_inicio_operaciones }}</strong>{% endif %}{% if emp.ubicacion_completa %}, Dirección del Establecimiento: <strong>{{ emp.ubicacion_completa }}</strong>{% endif %}{% if emp.estatus %}, Estatus: <strong>{{ emp.estatus }}</strong>{% endif %}.{% if emp.estatus == "En Solicitud" %} Es importante señalar que el estatus "En Solicitud" obedece a que nunca fue concluido el trámite en el sistema <strong>www.panamaemprende.gob.pa</strong> por lo tanto, no cuenta con un consecutivo en el Aviso de operación y no cuenta con el pago del derecho único del Aviso.{% endif %}
-            </p>
+            <div class="empresas-lista empresa-bloque">
+                <p class="empresa-nombre-header">{{ emp.razon_social|default:emp.razon_comercial|default:"EMPRESA" }}</p>
+                <ul>
+                    <li>
+                        Aviso de Operación: <strong>{{ emp.numero_aviso }}</strong>{% if emp.numero_licencia %}, Número de Licencia: <strong>{{ emp.numero_licencia }}</strong>{% endif %}{% if emp.razon_comercial %}, Razón Comercial: <strong>{{ emp.razon_comercial }}</strong>{% endif %}{% if emp.representante_legal %}, Representante Legal: <strong>{{ emp.representante_legal }}</strong>{% endif %}{% if emp.cedula_representante %}, Cédula de Representante Legal: <strong>{{ emp.cedula_representante }}</strong>{% endif %}{% if emp.razon_social %}, Razón Social: <strong>{{ emp.razon_social }}</strong>{% endif %}{% if emp.ruc %}, RUC: <strong>{{ emp.ruc }}{% if emp.dv %}-{{ emp.dv }}{% endif %}</strong>{% endif %}{% if emp.fecha_inicio_operaciones %}, Fecha de Inicio de Operaciones: <strong>{{ emp.fecha_inicio_operaciones_formateada|default:emp.fecha_inicio_operaciones }}</strong>{% endif %}{% if emp.ubicacion_completa %}, Dirección del Establecimiento: <strong>{{ emp.ubicacion_completa }}</strong>{% endif %}{% if emp.estatus %}, Estatus: <strong>{{ emp.estatus }}</strong>{% endif %}.{% if emp.estatus == "En Solicitud" %} Es importante señalar que el estatus "En Solicitud" obedece a que nunca fue concluido el trámite en el sistema <strong>www.panamaemprende.gob.pa</strong> por lo tanto, no cuenta con un consecutivo en el Aviso de operación y no cuenta con el pago del derecho único del Aviso.{% endif %}
+                    </li>
+                </ul>
+            </div>
             {% endfor %}
 
             <!-- Bloque de preguntas (dinámico) -->
@@ -307,5 +403,6 @@
             </div>
         </div>
     </div>
+
 </body>
 </html>

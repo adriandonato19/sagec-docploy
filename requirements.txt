@@ -6,6 +6,7 @@ requests
 
 # PDF Generation & Signing
 WeasyPrint
+pypdf  # Para fusionar PDFs (oficio + aviso de operación)
 pyhanko[crypto]
 pillow # Para procesar imágenes en la generación de PDFs.
 qrcode # Para generar códigos QR.

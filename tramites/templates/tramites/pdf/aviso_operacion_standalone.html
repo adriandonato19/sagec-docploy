@@ -1,0 +1,420 @@
+{% load tramite_filters %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Aviso de Operación</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 1.2cm 1.5cm 1.2cm 1.5cm;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 8pt;
+            line-height: 1.3;
+            color: #000;
+            margin: 0;
+            padding: 0;
+            background-color: #e8e8e8;
+        }
+
+        .aviso-page {
+            font-size: 8pt;
+            line-height: 1.3;
+        }
+
+        .aviso-page-break {
+            page-break-before: always;
+        }
+
+        /* --- Logo centrado arriba --- */
+        .aviso-logo-top {
+            text-align: center;
+            margin-bottom: 0.1cm;
+        }
+
+        .aviso-logo-top img {
+            height: 2cm;
+            width: auto;
+        }
+
+        /* --- Banner oscuro --- */
+        .aviso-banner {
+            background-color: #4a4a4a;
+            color: #fff;
+            text-align: center;
+            font-size: 10pt;
+            font-weight: bold;
+            padding: 0.15cm 0;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.25cm;
+        }
+
+        /* --- Título grande --- */
+        .aviso-titulo-grande {
+            text-align: center;
+            font-size: 18pt;
+            font-weight: bold;
+            letter-spacing: 0.12em;
+            margin-bottom: 0.25cm;
+        }
+
+        /* --- Recuadro principal --- */
+        .aviso-recuadro {
+            border: 1.5pt solid #000;
+            padding: 0.3cm 0.35cm;
+            background: #fff;
+        }
+
+        /* --- Sub-header institucional --- */
+        .aviso-subheader {
+            text-align: center;
+            font-size: 8pt;
+            font-weight: bold;
+            line-height: 1.35;
+            margin-bottom: 0.25cm;
+            color: #000;
+        }
+
+        /* --- Cabeceras de columna con fondo gris --- */
+        .aviso-columnas-header {
+            display: table;
+            width: 100%;
+            margin-bottom: 0;
+        }
+
+        .aviso-col-izq-header,
+        .aviso-col-der-header {
+            display: table-cell;
+            background-color: #d0d0d0;
+            padding: 0.12cm 0.2cm;
+            font-size: 8.5pt;
+            font-weight: bold;
+            vertical-align: middle;
+            border: 0.5pt solid #999;
+        }
+
+        .aviso-col-izq-header {
+            width: 50%;
+        }
+
+        .aviso-col-der-header {
+            width: 50%;
+            text-align: left;
+        }
+
+        /* --- Contenido bajo cabeceras --- */
+        .aviso-columnas-contenido {
+            display: table;
+            width: 100%;
+            border-bottom: 1pt solid #999;
+            padding-bottom: 0.15cm;
+            margin-bottom: 0.1cm;
+        }
+
+        .aviso-col-izq,
+        .aviso-col-der {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
+            padding: 0.15cm 0.2cm 0.1cm;
+            font-size: 8pt;
+            line-height: 1.35;
+        }
+
+        .aviso-col-der {
+            border-left: 1pt solid #999;
+        }
+
+        .aviso-campo {
+            margin-bottom: 0.08cm;
+        }
+
+        .aviso-label {
+            font-weight: bold;
+            font-size: 7.5pt;
+        }
+
+        .aviso-valor {
+            font-size: 8pt;
+        }
+
+        /* --- Nombre completo full-width --- */
+        .aviso-nombre-completo {
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 8.5pt;
+            padding: 0.15cm 0;
+            border-bottom: 1pt solid #999;
+            margin-bottom: 0.2cm;
+        }
+
+        /* --- Párrafo declarativo --- */
+        .aviso-declaracion {
+            margin-bottom: 0.2cm;
+            text-align: justify;
+            font-size: 8pt;
+            line-height: 1.3;
+        }
+
+        /* --- Secciones --- */
+        .aviso-seccion {
+            margin-bottom: 0.2cm;
+        }
+
+        .aviso-seccion-titulo {
+            font-weight: bold;
+            font-size: 8pt;
+            margin-bottom: 0.05cm;
+            text-decoration: underline;
+        }
+
+        .aviso-seccion-contenido {
+            padding-left: 0.25cm;
+            font-size: 8pt;
+        }
+
+        .aviso-actividad {
+            margin-bottom: 0.05cm;
+        }
+
+        .aviso-ciiu {
+            font-weight: bold;
+            font-size: 7.5pt;
+        }
+
+        /* --- Cláusula de Responsabilidad (recuadro interno) --- */
+        .aviso-clausula-box {
+            border: 1pt solid #000;
+            padding: 0.2cm 0.3cm;
+            margin-bottom: 0.2cm;
+            font-size: 7pt;
+            text-align: justify;
+            line-height: 1.25;
+        }
+
+        .aviso-clausula-titulo {
+            font-weight: bold;
+            font-size: 7pt;
+            display: inline;
+        }
+
+        .aviso-clausula-box p {
+            margin: 0;
+            display: inline;
+        }
+
+        /* --- Notas (recuadro interno) --- */
+        .aviso-notas-box {
+            border: 1pt solid #000;
+            padding: 0.2cm 0.3cm;
+            margin-bottom: 0.2cm;
+            font-size: 7pt;
+            text-align: justify;
+            line-height: 1.25;
+        }
+
+        .aviso-notas-box p {
+            margin: 0 0 0.1cm 0;
+        }
+
+        .aviso-fundamento {
+            font-size: 7pt;
+            margin-bottom: 0.08cm;
+        }
+
+        .aviso-panama-emprende {
+            font-size: 7pt;
+            margin-bottom: 0.1cm;
+        }
+
+        /* --- Firmas --- */
+        .aviso-firmas {
+            display: table;
+            width: 100%;
+            margin-top: 0.35cm;
+        }
+
+        .aviso-firma-col {
+            display: table-cell;
+            width: 50%;
+            text-align: center;
+            padding: 0 0.3cm;
+        }
+
+        .aviso-firma-linea {
+            border-top: 1pt solid #000;
+            width: 85%;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 0.05cm;
+        }
+
+        .aviso-firma-nombre {
+            font-size: 7.5pt;
+            font-weight: bold;
+        }
+
+        .aviso-firma-cip {
+            font-size: 7pt;
+        }
+
+        .aviso-firma-rol {
+            font-size: 7pt;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    {% for emp in empresas %}
+    <div class="aviso-page{% if not forloop.first %} aviso-page-break{% endif %}">
+        <!-- Logo centrado arriba -->
+        <div class="aviso-logo-top">
+            <img src="{{ logo_path }}" alt="Escudo Nacional">
+        </div>
+
+        <!-- Banner oscuro -->
+        <div class="aviso-banner">
+            MINISTERIO DE<br>COMERCIO E INDUSTRIAS
+        </div>
+
+        <!-- Título grande -->
+        <div class="aviso-titulo-grande">AVISO DE OPERACIÓN</div>
+
+        <!-- Recuadro principal -->
+        <div class="aviso-recuadro">
+            <!-- Sub-header institucional -->
+            <div class="aviso-subheader">
+                REPÚBLICA DE PANAMÁ<br>
+                MINISTERIO DE COMERCIO E INDUSTRIAS<br>
+                DIRECCIÓN GENERAL DE COMERCIO INTERIOR
+            </div>
+
+            <!-- Cabeceras de columna con fondo gris -->
+            <div class="aviso-columnas-header">
+                <div class="aviso-col-izq-header">Aviso de Operación Nº</div>
+                <div class="aviso-col-der-header">Expedido a favor de</div>
+            </div>
+
+            <!-- Contenido bajo las cabeceras -->
+            <div class="aviso-columnas-contenido">
+                <div class="aviso-col-izq">
+                    {% if emp.representante_legal %}
+                    <div class="aviso-campo">
+                        <span class="aviso-label">Datos del Representante Legal</span>
+                    </div>
+                    {% if emp.cedula_representante %}
+                    <div class="aviso-campo">
+                        <span class="aviso-valor">{{ emp.cedula_representante }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="aviso-campo">
+                        <span class="aviso-valor">{{ emp.representante_legal|upper }}</span>
+                    </div>
+                    {% endif %}
+                    <div class="aviso-campo" style="margin-top: 0.15cm;">
+                        <span class="aviso-label">Capital Invertido</span><br>
+                        <span class="aviso-valor">{{ emp.capital_invertido|formato_balboas }}</span>
+                    </div>
+                </div>
+                <div class="aviso-col-der">
+                    <div class="aviso-campo">
+                        <span class="aviso-valor" style="font-weight: bold;">{{ emp.razon_social|default:emp.razon_comercial|default:"—" }}</span>
+                    </div>
+                    <div class="aviso-campo" style="margin-top: 0.25cm;">
+                        <span class="aviso-valor">{{ emp.ruc_completo|default:emp.ruc|default:"—" }}{% if emp.dv and not emp.ruc_completo %} DV {{ emp.dv }}{% endif %}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Nombre completo full-width -->
+            <div class="aviso-nombre-completo">
+                {% if emp.representante_legal %}{{ emp.representante_legal|upper }}{% else %}{{ emp.razon_social|default:emp.razon_comercial|default:"—"|upper }}{% endif %}
+            </div>
+
+            <!-- Párrafo declarativo -->
+            <div class="aviso-declaracion">
+                {% if emp.representante_legal %}
+                Yo, <strong>{{ emp.representante_legal }}</strong>{% if emp.cedula_representante %}, con cédula de identidad personal {{ emp.cedula_representante }}{% endif %}{% if emp.nacionalidad %}, nacionalidad {{ emp.nacionalidad }}{% endif %}, con domicilio en {% if emp.provincia %}Provincia de {{ emp.provincia|upper }}{% endif %}{% if emp.distrito %}, Distrito de {{ emp.distrito|upper }}{% endif %}{% if emp.corregimiento %}, Corregimiento {{ emp.corregimiento|upper }}{% endif %}{% if emp.urbanizacion %}, Urbanización {{ emp.urbanizacion|upper }}{% endif %}{% if emp.edificio %}, edificio: {{ emp.edificio|upper }}{% endif %}{% if emp.apartamento %}, departamento: {{ emp.apartamento }}{% endif %}{% if emp.telefono %}, Teléfonos {{ emp.telefono }}{% endif %}.
+                {% else %}
+                Empresa: <strong>{{ emp.razon_social|default:emp.razon_comercial|default:"—" }}</strong>{% if emp.ubicacion_completa %}, con dirección en <strong>{{ emp.ubicacion_completa }}</strong>{% endif %}.
+                {% endif %}
+            </div>
+
+            <!-- Declaro lo siguiente: Ubicación -->
+            <div class="aviso-seccion">
+                <div class="aviso-seccion-titulo">Declaro lo siguiente:</div>
+                <div class="aviso-seccion-contenido">
+                    El establecimiento denominado <strong>{{ emp.razon_social|default:emp.razon_comercial|default:"—"|upper }}</strong>, está ubicado en la Provincia de {{ emp.provincia|default:"—"|upper }}, Distrito de {{ emp.distrito|default:"—"|upper }}{% if emp.corregimiento %}, Corregimiento de {{ emp.corregimiento|upper }}{% endif %}{% if emp.calle %}, Calle {{ emp.calle|upper }}{% endif %}{% if emp.edificio %}, edificio: {{ emp.edificio|upper }}{% endif %}{% if emp.apartamento %}, departamento: {{ emp.apartamento }}{% endif %}{% if emp.urbanizacion %}, Urbanización {{ emp.urbanizacion|upper }}{% endif %}{% if emp.fecha_inicio_operaciones_formateada or emp.fecha_inicio_operaciones %} ,Inicio de operaciones: {{ emp.fecha_inicio_operaciones_formateada|default:emp.fecha_inicio_operaciones }}{% endif %}
+                </div>
+            </div>
+
+            <!-- Actividad comercial -->
+            <div class="aviso-seccion">
+                <div class="aviso-seccion-titulo">Se dedicará a las actividades de:</div>
+                <div class="aviso-seccion-contenido">
+                    {% if emp.actividades_comerciales_ciiu %}
+                        {% for act in emp.actividades_comerciales_ciiu %}
+                        <div class="aviso-actividad">
+                            {% if act.codigo %}<span class="aviso-ciiu">({{ act.codigo }})-</span>{% endif %}{{ act.descripcion|default:act.actividad|default:"" }}
+                        </div>
+                        {% endfor %}
+                    {% elif emp.actividad_comercial %}
+                        <div class="aviso-actividad">{{ emp.actividad_comercial }}</div>
+                    {% else %}
+                        <div class="aviso-actividad">—</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Cláusula de Responsabilidad (recuadro interno) -->
+            <div class="aviso-clausula-box">
+                <span class="aviso-clausula-titulo">Cláusula de Responsabilidad:</span>
+                <p>
+                    En caso de que este Aviso de Operación haya sido procesado por una persona distinta al Representante Legal o administrador del establecimiento, dicha persona será solidariamente responsable de la información suministrada, por lo que deberá firmar el Aviso de Operación en conjunto con el Representante Legal o administrador del establecimiento comercial según sea el caso. Declaro bajo la gravedad de juramento que toda la información por mi afirmada al sistema PanamáEmprende en el presente proceso de Aviso de Operación, son ciertos.
+                </p>
+            </div>
+
+            <!-- Notas (recuadro interno) -->
+            <div class="aviso-notas-box">
+                <p>
+                    Este Aviso de Operación, deberá ser impreso, inmediantamente firmado por los declarantes que aparecen en la parte inferior del mismo. Además, debe mantenerse en el establecimiento donde se ejerce la(s) actividades(s) comerciale(s) o industriale(s) y mostrarlo en caso de ser solicitado por las Autoridades Públicas y Competentes, en el ejercicio de su función fiscalizadora.
+                </p>
+                <p>
+                    Tome nota que las zonificaciones comerciales deben ser previamente validadas con el Municipio respectivo. Lo declarado en este documento, será verificado por el MICI y entes competentes, en caso de ser incompatible o incongruente se ordenará la suspensión temporal o definitiva del Aviso de Operación. Adicionalmente se podrá ordenar el cierre del local y la aplicación de la multa correspondiente según la infracción cometida.
+                </p>
+                <div class="aviso-fundamento">
+                    Fundamento legal: Ley 5 de 2007 y ley 2 de 2013.
+                </div>
+                <div class="aviso-panama-emprende">
+                    PanamáEmprende ha avisado de la apertura del negocio a la Caja de Seguro Social y al Municipio respectivo.
+                </div>
+            </div>
+
+            <!-- Firmas -->
+            <div class="aviso-firmas">
+                <div class="aviso-firma-col">
+                    <div class="aviso-firma-linea"></div>
+                    <div class="aviso-firma-nombre">{{ emp.representante_legal|default:"" }}</div>
+                    {% if emp.cedula_representante %}
+                    <div class="aviso-firma-cip">C.I.P. {{ emp.cedula_representante }}</div>
+                    {% endif %}
+                    <div class="aviso-firma-rol">Firma del Declarante (Tramitador)</div>
+                </div>
+                <div class="aviso-firma-col">
+                    <div class="aviso-firma-linea"></div>
+                    <div class="aviso-firma-nombre">{{ emp.representante_legal|default:"" }}</div>
+                    {% if emp.cedula_representante %}
+                    <div class="aviso-firma-cip">C.I.P. {{ emp.cedula_representante }}</div>
+                    {% endif %}
+                    <div class="aviso-firma-rol">Firma del Dueño del Negocio</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</body>
+</html>

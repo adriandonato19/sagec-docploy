@@ -1,9 +1,13 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # 1. Rutas del Proyecto (Ajustadas para la nueva estructura)
 # BASE_DIR apunta ahora a la raíz del proyecto (donde está manage.py)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
+# Cargar variables de entorno desde .env
+load_dotenv(BASE_DIR / '.env')
 
 # 2. Aplicaciones (Core + Apps del Negocio)
 # Aquí se refleja tu Scream Architecture
@@ -92,7 +96,12 @@ AUTH_USER_MODEL = 'identidad.UsuarioMICI'
 
 # Configuración de URLs de autenticación
 LOGIN_URL = 'identidad:login'  # O '/login/'
-LOGIN_REDIRECT_URL = 'integracion:buscador' # A donde ir después de loguearse
+LOGIN_REDIRECT_URL = 'consultar_tramite'  # A donde ir después de loguearse
 LOGOUT_REDIRECT_URL = 'identidad:login'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# 9. API Panamá Emprende
+PANAMA_EMPRENDE_API_URL = 'https://api.panamaemprende.gob.pa/api/consulta/multiple/{busqueda}'
+PANAMA_EMPRENDE_USER = os.environ.get('X-USER', '')
+PANAMA_EMPRENDE_PASSWORD = os.environ.get('X-PASSWORD', '')

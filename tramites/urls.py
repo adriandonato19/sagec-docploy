@@ -4,7 +4,6 @@ from . import views
 app_name = 'tramites'
 
 urlpatterns = [
-    path('crear/', views.crear_tramite_view, name='crear'),
     path('solicitudes/', views.bandeja_admin_view, name='bandeja_admin'),
     path('certificados/', views.mis_certificados_view, name='mis_certificados'),
     path('oficios/', views.mis_oficios_view, name='mis_oficios'),
@@ -13,5 +12,10 @@ urlpatterns = [
     path('<uuid:id>/firmar/', views.firmar_view, name='firmar'),
     path('<uuid:id>/pdf/', views.descargar_view, name='descargar'),
     path('hx/vista-previa/<uuid:id>/', views.vista_previa_pdf_hx, name='vista_previa_pdf'),
+    path('<uuid:id>/hx/responder-preguntas/', views.responder_preguntas_hx, name='responder_preguntas_hx'),
+    path('<uuid:id>/hx/responder-solicitud/', views.responder_solicitud_hx, name='responder_solicitud_hx'),
+    path('hx/agregar-empresa/', views.agregar_empresa_hx, name='agregar_empresa_hx'),
+    path('hx/remover-empresa/<int:index>/', views.remover_empresa_hx, name='remover_empresa_hx'),
+    path('hx/remover-empresa-ruc/', views.remover_empresa_por_ruc_hx, name='remover_empresa_por_ruc_hx'),
 ]
 

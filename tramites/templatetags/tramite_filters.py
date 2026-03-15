@@ -32,3 +32,16 @@ def extraer_nombre_destinatario(destinatario):
     
     return nombre
 
+
+@register.filter
+def formato_balboas(valor):
+    """
+    Formatea un valor numérico como moneda panameña (Balboas).
+    Ej: 10000 → "B/.10,000.00"
+    """
+    try:
+        num = float(valor)
+        return f"B/.{num:,.2f}"
+    except (ValueError, TypeError):
+        return f"B/.{valor}" if valor else "B/.0.00"
+

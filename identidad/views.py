@@ -91,7 +91,7 @@ def login_view(request):
             elif user.rol == UsuarioMICI.TRABAJADOR:
                 return redirect('tramites:bandeja_admin')
             else:  # FISCAL
-                return redirect('integracion:buscador')
+                return redirect('consultar_tramite')
         else:
             messages.error(request, 'Usuario o contraseña incorrectos.')
     

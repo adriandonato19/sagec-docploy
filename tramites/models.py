@@ -27,7 +27,8 @@ class Tramite(models.Model):
     numero_referencia = models.CharField(max_length=50, blank=True, help_text="Número de referencia humano-legible")
     
     # Datos de la empresa (snapshot inmutable)
-    empresa_snapshot = models.JSONField(default=dict, help_text="Snapshot de datos de la empresa al momento de creación")
+    empresa_snapshot = models.JSONField(default=list, help_text="Snapshot de datos de la empresa al momento de creación")
+    numero_carpetilla = models.CharField(max_length=100, blank=True, help_text="Número de carpetilla (solo para oficios)")
     origen_consulta = models.CharField(max_length=100, blank=True, help_text="RUC o número de aviso consultado")
     
     # Trazabilidad (Módulo 3 y 4 de la propuesta)
@@ -41,11 +42,19 @@ class Tramite(models.Model):
     archivo_pdf_firmado = models.FileField(upload_to='pdfs/firmados/', null=True, blank=True, help_text="PDF firmado externamente y subido por el director")
     motivo_rechazo = models.TextField(blank=True, help_text="Motivo del rechazo si aplica")
     
-    # Campos específicos para certificados oficiales
+    # Campos adicionales del trámite
     destinatario = models.CharField(max_length=200, blank=True, help_text="Nombre del destinatario del documento (ej: Señor LUIS ABREGO)")
     proposito = models.TextField(blank=True, help_text="Propósito del trámite (ej: traspaso vehicular)")
+    objetivo_solicitud = models.TextField(blank=True, help_text="Objetivo de la solicitud (ej: autenticación de certificado de operación)")
     fecha_solicitud = models.DateField(null=True, blank=True, help_text="Fecha en que el MICI recibió la solicitud")
-    
+
+    # Campos adicionales para oficios
+    numero_oficio_externo = models.CharField(max_length=200, blank=True, help_text="Número de oficio externo (referencia del solicitante, ej: 7487/202500039050/sl)")
+    titulo_destinatario = models.CharField(max_length=100, blank=True, help_text="Título del destinatario (ej: Licenciada, Señor)")
+    cargo_destinatario = models.TextField(blank=True, help_text="Cargo del destinatario (ej: Fiscal Adjunta de la Fiscalía Anticorrupción...)")
+    institucion_destinatario = models.CharField(max_length=200, blank=True, help_text="Institución del destinatario (ej: MINISTERIO PÚBLICO)")
+    respuesta_solicitud = models.TextField(blank=True, help_text="Respuesta libre a la solicitud (llenada durante revisión)")
+
     # Timestamps
     fecha_creacion = models.DateTimeField(auto_now_add=True) 
     fecha_envio = models.DateTimeField(null=True, blank=True)
@@ -68,12 +77,31 @@ class Tramite(models.Model):
         self.fecha_envio = timezone.now()
         self.save()
     
+    @property
+    def empresas_snapshot_list(self):
+        """Retorna empresa_snapshot como lista (maneja tanto dict como list)."""
+        if isinstance(self.empresa_snapshot, list):
+            return self.empresa_snapshot
+        if isinstance(self.empresa_snapshot, dict) and self.empresa_snapshot:
+            return [self.empresa_snapshot]
+        return []
+
+    @property
+    def empresa_principal(self):
+        """Retorna la primera empresa del snapshot para backward compatibility."""
+        lista = self.empresas_snapshot_list
+        return lista[0] if lista else {}
+
     def aprobar(self, revisor):
         """Transición: PENDIENTE -> APROBADO"""
         if self.estado != self.PENDIENTE:
             raise ValidationError(f"No se puede aprobar un trámite en estado {self.get_estado_display()}")
         if not revisor.puede_aprobar:
             raise ValidationError("El usuario no tiene permisos para aprobar")
+        # Verificar que todas las preguntas estén respondidas
+        preguntas_sin_responder = self.preguntas.filter(texto_respuesta='')
+        if preguntas_sin_responder.exists():
+            raise ValidationError("Todas las preguntas deben ser respondidas antes de aprobar.")
         self.estado = self.APROBADO
         self.revisor = revisor
         self.fecha_revision = timezone.now()
@@ -106,4 +134,23 @@ class Tramite(models.Model):
         self.fecha_firma = timezone.now()
         if hash_documento:
             self.hash_seguridad = hash_documento
-        self.save() 
+        self.save()
+
+
+class PreguntaOficio(models.Model):
+    tramite = models.ForeignKey(Tramite, on_delete=models.CASCADE, related_name='preguntas')
+    orden = models.PositiveIntegerField(default=0)
+    texto_pregunta = models.TextField()
+    texto_respuesta = models.TextField(blank=True)
+    respondida_por = models.ForeignKey('identidad.UsuarioMICI', on_delete=models.SET_NULL, null=True, blank=True)
+    fecha_respuesta = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['orden']
+
+    def __str__(self):
+        return f"Pregunta {self.orden} - Trámite {self.tramite_id}"
+
+    @property
+    def esta_respondida(self):
+        return bool(self.texto_respuesta.strip())

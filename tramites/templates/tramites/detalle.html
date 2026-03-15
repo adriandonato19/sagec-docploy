@@ -8,7 +8,7 @@
         <h1 class="text-2xl font-bold text-gray-800">Detalle del Trámite</h1>
         <a href="{% url 'tramites:bandeja_admin' %}" class="text-blue-600 hover:underline">← Volver a la lista</a>
     </div>
-    
+
     <div class="bg-white shadow-lg rounded-lg p-6 mb-6">
         <div class="grid grid-cols-2 gap-4 mb-6">
             <div>
@@ -27,12 +27,28 @@
                 <p class="text-sm text-gray-600"><strong>Fecha de Creación:</strong></p>
                 <p class="text-lg">{{ tramite.fecha_creacion|date:"d/m/Y H:i" }}</p>
             </div>
+            {% if tramite.numero_carpetilla %}
+            <div>
+                <p class="text-sm text-gray-600"><strong>Número de Carpetilla:</strong></p>
+                <p class="text-lg">{{ tramite.numero_carpetilla }}</p>
+            </div>
+            {% endif %}
+            {% if tramite.numero_oficio_externo %}
+            <div>
+                <p class="text-sm text-gray-600"><strong>Número de Oficio Externo:</strong></p>
+                <p class="text-lg">{{ tramite.numero_oficio_externo }}</p>
+            </div>
+            {% endif %}
         </div>
-        
+
+        <!-- Información de Empresa(s) -->
         <div class="mb-6">
-            <h2 class="text-xl font-semibold mb-4">Información de la Empresa</h2>
-            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                {% with empresa=tramite.empresa_snapshot %}
+            <h2 class="text-xl font-semibold mb-4">Información de la Empresa{{ tramite.empresas_snapshot_list|length|pluralize:"s" }}</h2>
+            {% for empresa in tramite.empresas_snapshot_list %}
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200 {% if not forloop.last %}mb-4{% endif %}">
+                {% if tramite.empresas_snapshot_list|length > 1 %}
+                <h3 class="text-sm font-bold text-blue-700 uppercase tracking-wider mb-3">Empresa {{ forloop.counter }}</h3>
+                {% endif %}
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <!-- Columna 1 -->
                     <div class="space-y-4">
@@ -106,10 +122,20 @@
                         {% endif %}
                     </div>
                 </div>
-                {% endwith %}
             </div>
+            {% empty %}
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <p class="text-gray-500">No hay datos de empresa disponibles.</p>
+            </div>
+            {% endfor %}
         </div>
-        
+
+        <!-- Preguntas -->
+        {% include 'tramites/partials/preguntas_detalle.html' %}
+
+        <!-- Respuesta de Solicitud -->
+        {% include 'tramites/partials/respuesta_solicitud_detalle.html' %}
+
         <div class="mb-6">
             <h2 class="text-xl font-semibold mb-4">Trazabilidad</h2>
             <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
@@ -139,7 +165,21 @@
                     {% if tramite.destinatario %}
                     <div>
                         <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Destinatario</label>
-                        <p class="text-lg font-semibold text-gray-900">{{ tramite.destinatario }}</p>
+                        <p class="text-lg font-semibold text-gray-900">
+                            {% if tramite.titulo_destinatario %}{{ tramite.titulo_destinatario }} {% endif %}{{ tramite.destinatario }}
+                        </p>
+                        {% if tramite.cargo_destinatario %}
+                        <p class="text-sm text-gray-600 mt-1">{{ tramite.cargo_destinatario }}</p>
+                        {% endif %}
+                        {% if tramite.institucion_destinatario %}
+                        <p class="text-sm font-semibold text-gray-700 mt-1">{{ tramite.institucion_destinatario }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% if tramite.objetivo_solicitud %}
+                    <div class="md:col-span-2">
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Objetivo de la Solicitud</label>
+                        <p class="text-lg text-gray-700 mt-1">{{ tramite.objetivo_solicitud }}</p>
                     </div>
                     {% endif %}
                     {% if tramite.proposito %}
@@ -151,14 +191,14 @@
                 </div>
             </div>
         </div>
-        
+
         {% if tramite.motivo_rechazo %}
         <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
             <h3 class="font-semibold text-red-800 mb-2">Motivo de Rechazo</h3>
             <p class="text-red-700">{{ tramite.motivo_rechazo }}</p>
         </div>
         {% endif %}
-        
+
         <!-- Acciones según estado y rol -->
         <div class="flex gap-4">
             {% if tramite.estado == 'BORRADOR' and tramite.solicitante == user %}
@@ -170,24 +210,30 @@
                     </button>
                 </form>
             {% endif %}
-            
+
             {% if tramite.estado == 'PENDIENTE' and user.puede_aprobar %}
+                {% if todas_respondidas %}
                 <form method="post" action="{% url 'tramites:aprobar' id=tramite.uuid %}">
                     {% csrf_token %}
                     <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
                         Aprobar
                     </button>
                 </form>
+                {% else %}
+                <button disabled class="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed" title="Debe responder todas las preguntas antes de aprobar">
+                    Aprobar (preguntas pendientes)
+                </button>
+                {% endif %}
             {% endif %}
-            
+
             {% if tramite.estado == 'APROBADO' and user.puede_firmar %}
                 <a href="{% url 'tramites:firmar' id=tramite.uuid %}" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
                     Firmar
                 </a>
             {% endif %}
-            
+
             {% if tramite.archivo_pdf or tramite.archivo_pdf_firmado %}
-                <button 
+                <button
                     hx-get="{% url 'tramites:vista_previa_pdf' id=tramite.uuid %}"
                     hx-target="body"
                     hx-swap="beforeend"
@@ -209,4 +255,3 @@
     </div>
 </div>
 {% endblock %}
-

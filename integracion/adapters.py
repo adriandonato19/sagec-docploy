@@ -36,6 +36,7 @@ def normalizar_datos_empresa(datos_api: Dict) -> Dict:
         'numero_aviso': datos_api.get('aviso_operacion', ''),
         'numero_licencia': datos_api.get('numero_licencia', ''),
         'representante_legal': datos_api.get('representante_legal', ''),
+        'cedula_representante': datos_api.get('cedula_representante',''),
         'fecha_inicio_operaciones': datos_api.get('fecha_inicio_operaciones', ''),
         'provincia': datos_api.get('provincia', ''),
         'distrito': datos_api.get('distrito', ''),
@@ -102,11 +103,12 @@ def normalizar_lista_avisos(avisos_api: List[Dict]) -> List[Dict]:
     return [
         {
             'numero_aviso': aviso.get('aviso_operacion', ''),
-            'sucursal': aviso.get('sucursal', '000'), # Usar el campo sucursal del JSON
+            'ruc': aviso.get('ruc', ''),
             'razon_comercial': aviso.get('razon_comercial', ''),
             'razon_social': aviso.get('razon_social', ''),
+            'representante_legal': aviso.get('representante_legal', ''),
+            'cedula_representante': aviso.get('cedula_representante',''),
             'estatus': aviso.get('estado_sucursal', ''),
-            'fecha_inicio': aviso.get('fecha_inicio_operaciones', ''),
             'ruc_completo': f"{aviso.get('ruc', '')}-{aviso.get('dv', '')}" if aviso.get('dv') else aviso.get('ruc', ''),
         }
         for aviso in avisos_api

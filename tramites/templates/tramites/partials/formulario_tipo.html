@@ -1,0 +1,345 @@
+{% comment %}
+Formulario dinámico para crear un trámite según tipo (CERTIFICADO o OFICIO).
+Se carga vía HTMX en #formulario-container de consultar.html.
+{% endcomment %}
+
+<div class="bg-white shadow-lg rounded-lg p-6">
+    <div class="flex items-center justify-between mb-6">
+        <h2 class="text-xl font-bold text-gray-800">
+            Nuevo {{ tipo_label }}
+        </h2>
+        <button hx-get="{% url 'consultar_tramite' %}"
+                hx-target="#formulario-container"
+                hx-swap="innerHTML"
+                hx-select="#formulario-container"
+                type="button"
+                onclick="document.getElementById('formulario-container').innerHTML=''; restaurarCards();"
+                class="text-gray-500 hover:text-gray-700 text-sm flex items-center gap-1">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Cambiar tipo
+        </button>
+    </div>
+
+    <form method="post" action="{% url 'consultar_tramite' %}" id="form-crear-tramite">
+        {% csrf_token %}
+        <input type="hidden" name="tipo_documento" value="{{ tipo_documento }}">
+
+        <!-- Empresas -->
+        <div class="mb-6">
+            <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                Empresas
+                {% if tipo_documento == 'OFICIO' %}
+                <span class="text-red-500">*</span>
+                <span class="text-xs text-gray-500 font-normal">(mínimo 1 empresa)</span>
+                {% else %}
+                <span class="text-xs text-gray-500 font-normal">(opcional)</span>
+                {% endif %}
+            </h3>
+
+            {% if tipo_documento == 'OFICIO' %}
+                <!-- Oficio: buscador siempre visible -->
+                {% include 'tramites/partials/buscador_empresa_inline.html' %}
+                <div class="mt-3">
+                    {% include 'tramites/partials/lista_empresas_cart.html' %}
+                </div>
+            {% else %}
+                <!-- Certificado: buscador togglable -->
+                <div id="empresas-toggle-section">
+                    <button type="button"
+                            onclick="document.getElementById('buscador-inline-wrapper').classList.toggle('hidden');"
+                            class="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 mb-3">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Agregar empresa (opcional)
+                    </button>
+                    <div id="buscador-inline-wrapper" class="hidden">
+                        {% include 'tramites/partials/buscador_empresa_inline.html' %}
+                    </div>
+                    <div class="mt-3">
+                        {% include 'tramites/partials/lista_empresas_cart.html' %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Preguntas dinámicas -->
+        <div class="mb-6">
+            <h3 class="text-lg font-semibold mb-3 text-gray-800">
+                Preguntas
+                <span class="text-xs text-gray-500 font-normal">(opcional)</span>
+            </h3>
+            <div id="preguntas-container" class="space-y-3">
+                <!-- Pregunta 1 por defecto -->
+                <div class="flex gap-2 items-start pregunta-row">
+                    <span class="text-sm font-medium text-gray-500 mt-2">1.</span>
+                    <textarea name="preguntas[]"
+                              rows="2"
+                              placeholder="Escriba la pregunta..."
+                              class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
+                    <button type="button"
+                            onclick="if(document.querySelectorAll('.pregunta-row').length > 1){this.parentElement.remove(); renumerarPreguntas();}"
+                            class="text-red-500 hover:text-red-700 mt-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <button type="button"
+                    id="btn-agregar-pregunta"
+                    class="mt-3 text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Agregar Pregunta
+            </button>
+        </div>
+
+        {% if tipo_documento == 'OFICIO' %}
+        <!-- Número de Carpetilla (solo oficios) -->
+        <div class="mb-4">
+            <label for="numero_carpetilla" class="block text-sm font-medium text-gray-700 mb-2">
+                Número de Carpetilla
+                <span class="text-red-500">*</span>
+            </label>
+            <input type="text"
+                   name="numero_carpetilla"
+                   id="numero_carpetilla"
+                   required
+                   placeholder="Ej: CARP-2026-001"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Número de Oficio Externo (solo oficios) -->
+        <div class="mb-4">
+            <label for="numero_oficio_externo" class="block text-sm font-medium text-gray-700 mb-2">
+                Número de Oficio Externo
+                <span class="text-red-500">*</span>
+            </label>
+            <input type="text"
+                   name="numero_oficio_externo"
+                   id="numero_oficio_externo"
+                   required
+                   placeholder="Ej: 7487/202500039050/sl"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Destinatario detallado (solo oficios) -->
+        <div class="mb-4">
+            <h3 class="text-sm font-semibold text-gray-800 mb-3">Destinatario</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label for="titulo_destinatario" class="block text-sm font-medium text-gray-700 mb-2">
+                        Título
+                        <span class="text-xs text-gray-500">(Ej: Licenciada, Señor)</span>
+                    </label>
+                    <input type="text"
+                           name="titulo_destinatario"
+                           id="titulo_destinatario"
+                           placeholder="Licenciada"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label for="destinatario" class="block text-sm font-medium text-gray-700 mb-2">
+                        Nombre completo
+                    </label>
+                    <input type="text"
+                           name="destinatario"
+                           id="destinatario"
+                           placeholder="NOMBRE COMPLETO"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="mt-3">
+                <label for="cargo_destinatario" class="block text-sm font-medium text-gray-700 mb-2">
+                    Cargo
+                    <span class="text-xs text-gray-500">(Ej: Fiscal Adjunta de la Fiscalía Anticorrupción...)</span>
+                </label>
+                <textarea name="cargo_destinatario"
+                          id="cargo_destinatario"
+                          rows="2"
+                          placeholder="Cargo del destinatario..."
+                          class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
+            </div>
+            <div class="mt-3">
+                <label for="institucion_destinatario" class="block text-sm font-medium text-gray-700 mb-2">
+                    Institución
+                    <span class="text-xs text-gray-500">(Ej: MINISTERIO PÚBLICO)</span>
+                </label>
+                <input type="text"
+                       name="institucion_destinatario"
+                       id="institucion_destinatario"
+                       placeholder="MINISTERIO PÚBLICO"
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+            </div>
+        </div>
+        {% else %}
+        <!-- Destinatario simple (solo certificados) -->
+        <div class="mb-4">
+            <label for="destinatario" class="block text-sm font-medium text-gray-700 mb-2">
+                Destinatario
+                <span class="text-xs text-gray-500">(Ej: Señor LUIS ABREGO)</span>
+            </label>
+            <input type="text"
+                   name="destinatario"
+                   id="destinatario"
+                   placeholder="Señor [NOMBRE COMPLETO]"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+        {% endif %}
+
+        <!-- Objetivo de la Solicitud -->
+        <div class="mb-4">
+            <label for="objetivo_solicitud" class="block text-sm font-medium text-gray-700 mb-2">
+                Objetivo de la Solicitud
+                <span class="text-xs text-gray-500">(Ej: autenticación de certificado de operación)</span>
+            </label>
+            <textarea name="objetivo_solicitud"
+                      id="objetivo_solicitud"
+                      rows="2"
+                      placeholder="Describa lo que solicita (ej: autenticación de certificado de operación no operativo)..."
+                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
+        </div>
+
+        {% if tipo_documento != 'OFICIO' %}
+        <!-- Propósito (solo certificados) -->
+        <div class="mb-4">
+            <label for="proposito" class="block text-sm font-medium text-gray-700 mb-2">
+                Propósito del Trámite
+                <span class="text-xs text-gray-500">(Ej: traspaso vehicular)</span>
+            </label>
+            <textarea name="proposito"
+                      id="proposito"
+                      rows="2"
+                      placeholder="Describa el propósito del trámite..."
+                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"></textarea>
+        </div>
+        {% endif %}
+
+        <!-- Fecha de Solicitud -->
+        <div class="mb-4">
+            <label for="fecha_solicitud" class="block text-sm font-medium text-gray-700 mb-2">
+                Fecha de Solicitud Recibida
+                <span class="text-xs text-gray-500">(Fecha en que el MICI recibió la solicitud)</span>
+            </label>
+            <input type="date"
+                   name="fecha_solicitud"
+                   id="fecha_solicitud"
+                   value="{{ today }}"
+                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+        </div>
+
+        <!-- Submit -->
+        <div class="flex gap-4">
+            <button type="submit"
+                    id="btn-crear-tramite"
+                    class="bg-blue-900 text-white px-6 py-2 rounded-lg hover:bg-blue-800">
+                Crear Trámite
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('formulario-container').innerHTML=''; restaurarCards();"
+                    class="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400">
+                Cancelar
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Resaltar card seleccionada y atenuar la otra
+    (function() {
+        const cards = document.querySelectorAll('#tipo-selector button');
+        cards.forEach(card => {
+            const isCertificado = card.querySelector('h2').textContent.trim() === 'Certificado';
+            const isSelected = (isCertificado && '{{ tipo_documento }}' === 'CERTIFICADO') ||
+                               (!isCertificado && '{{ tipo_documento }}' === 'OFICIO');
+            if (isSelected) {
+                card.classList.add('border-blue-500', 'ring-2', 'ring-blue-300');
+                card.setAttribute('disabled', 'true');
+                card.classList.remove('hover:shadow-xl', 'hover:border-blue-500', 'hover:border-green-500');
+            } else {
+                card.classList.add('opacity-50');
+            }
+        });
+    })();
+
+    // Preguntas dinámicas
+    let preguntaCount = document.querySelectorAll('.pregunta-row').length;
+
+    document.getElementById('btn-agregar-pregunta').addEventListener('click', function() {
+        preguntaCount++;
+        const container = document.getElementById('preguntas-container');
+        const row = document.createElement('div');
+        row.className = 'flex gap-2 items-start pregunta-row';
+        row.innerHTML = `
+            <span class="text-sm font-medium text-gray-500 mt-2">${preguntaCount}.</span>
+            <textarea name="preguntas[]"
+                      rows="2"
+                      placeholder="Escriba la pregunta..."
+                      class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"></textarea>
+            <button type="button"
+                    onclick="if(document.querySelectorAll('.pregunta-row').length > 1){this.parentElement.remove(); renumerarPreguntas();}"
+                    class="text-red-500 hover:text-red-700 mt-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        `;
+        container.appendChild(row);
+    });
+
+    function renumerarPreguntas() {
+        const rows = document.querySelectorAll('#preguntas-container > .pregunta-row');
+        preguntaCount = rows.length;
+        rows.forEach((row, i) => {
+            row.querySelector('span').textContent = (i + 1) + '.';
+        });
+    }
+
+    // Validación para oficios: al menos 1 empresa
+    {% if tipo_documento == 'OFICIO' %}
+    document.getElementById('form-crear-tramite').addEventListener('submit', function(e) {
+        const empresas = document.querySelectorAll('#empresas-cart .empresa-item');
+        if (empresas.length === 0) {
+            e.preventDefault();
+            // Mostrar error visual
+            const cartDiv = document.getElementById('empresas-cart');
+            if (!document.getElementById('empresa-error-msg')) {
+                const errorMsg = document.createElement('p');
+                errorMsg.id = 'empresa-error-msg';
+                errorMsg.className = 'text-red-600 text-sm mt-2 font-medium';
+                errorMsg.textContent = 'Debe agregar al menos una empresa para crear un oficio.';
+                cartDiv.after(errorMsg);
+                setTimeout(() => errorMsg.remove(), 4000);
+            }
+        }
+    });
+    {% endif %}
+
+    // Restaurar cards a su estado original
+    function restaurarCards() {
+        const cards = document.querySelectorAll('#tipo-selector button');
+        cards.forEach(card => {
+            card.classList.remove('border-blue-500', 'ring-2', 'ring-blue-300', 'opacity-50');
+            card.removeAttribute('disabled');
+            // Restaurar hover según tipo
+            const isCertificado = card.querySelector('h2').textContent.trim() === 'Certificado';
+            card.classList.add(isCertificado ? 'hover:border-blue-500' : 'hover:border-green-500');
+            card.classList.add('hover:shadow-xl');
+        });
+    }
+
+    // HTMX error handling para agregar empresa
+    document.body.addEventListener('htmx:responseError', function(evt) {
+        if (evt.detail.target && evt.detail.target.id === 'empresas-cart') {
+            const errorDiv = document.getElementById('empresas-cart-error');
+            if (errorDiv) {
+                errorDiv.innerHTML = evt.detail.xhr.responseText;
+                setTimeout(() => { errorDiv.innerHTML = ''; }, 3000);
+            }
+        }
+    });
+</script>

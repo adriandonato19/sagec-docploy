@@ -1,39 +1,46 @@
 """
-Servicio de integración con API externa (mock por ahora).
+Servicio de integración con API de Panamá Emprende.
 
 $Reusable$
 """
+import logging
 from typing import Optional, Dict
-from .mock_data import buscar_por_ruc
+
+from .api_client import consultar_empresa as api_consultar
 from .adapters import normalizar_datos_empresa, construir_ubicacion_completa, normalizar_lista_avisos
 
+logger = logging.getLogger(__name__)
 
-def buscar_empresa(query: str) -> Optional[Dict]:
+
+def buscar_empresa(query: str, page: int = 1) -> Optional[Dict]:
     """
-    Busca una empresa por RUC o número de aviso.
-    
+    Busca una empresa por RUC, cédula, nombre comercial o razón social.
+
     Args:
-        query: RUC o número de aviso a buscar
-    
+        query: Término de búsqueda
+        page: Número de página para la API
+
     Returns:
-        Diccionario con 'detalle' y 'avisos' o None si no se encuentra
-    
+        Diccionario con 'detalle', 'avisos', 'resultados_raw' y 'paginacion', o None si no se encuentra
+
     $Reusable$
     """
-    # Por ahora usamos mock data
-    resultado = buscar_por_ruc(query)
-    
-    if resultado:
-        # Normalizar datos usando adapters
-        detalle_normalizado = normalizar_datos_empresa(resultado['detalle'])
-        detalle_normalizado['ubicacion_completa'] = construir_ubicacion_completa(detalle_normalizado)
-        
-        avisos_normalizados = normalizar_lista_avisos(resultado['avisos'])
-        
-        return {
-            'detalle': detalle_normalizado,
-            'avisos': avisos_normalizados,
-        }
-    
-    return None
+    respuesta = api_consultar(query, page=page)
 
+    if not respuesta:
+        return None
+
+    resultados = respuesta['resultados']
+
+    # Normalizar datos usando adapters
+    detalle_normalizado = normalizar_datos_empresa(resultados[0])
+    detalle_normalizado['ubicacion_completa'] = construir_ubicacion_completa(detalle_normalizado)
+
+    avisos_normalizados = normalizar_lista_avisos(resultados)
+
+    return {
+        'detalle': detalle_normalizado,
+        'avisos': avisos_normalizados,
+        'resultados_raw': resultados,
+        'paginacion': respuesta['paginacion'],
+    }
