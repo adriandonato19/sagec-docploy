@@ -59,6 +59,34 @@ class RegistroPublicoTests(IdentidadTestCase):
         login_template = Path("identidad/templates/identidad/login.html").read_text(encoding="utf-8")
         self.assertNotIn("Regístrate", login_template)
 
+    def test_raiz_redirige_a_login(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], reverse("identidad:login"))
+
+
+class RootRedirectAuthenticatedTests(IdentidadTestCase):
+    def setUp(self):
+        super().setUp()
+        self.director = self.crear_usuario(
+            username="director_root",
+            email="director.root@mici.gob.pa",
+            cedula="8-000-0099",
+            rol=UsuarioMICI.DIRECTOR,
+        )
+
+    def test_raiz_con_sesion_activa_termina_en_destino_post_login(self):
+        self.client.force_login(self.director)
+
+        response = self.client.get("/")
+        login_response = self.client.get(reverse("identidad:login"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["Location"], reverse("identidad:login"))
+        self.assertEqual(login_response.status_code, 302)
+        self.assertEqual(login_response.headers["Location"], reverse("tramites:bandeja_admin"))
+
 
 class CrearDirectorCommandTests(IdentidadTestCase):
     @patch("identidad.management.commands.crear_director.getpass")

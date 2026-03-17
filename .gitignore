@@ -39,7 +39,6 @@ local_settings.py
 db.sqlite3
 db.sqlite3-journal
 media/
-static/
 staticfiles/
 
 # Configuration (CRÍTICO: No subir tus llaves de API o contraseñas)
