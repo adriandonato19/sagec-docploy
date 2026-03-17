@@ -67,8 +67,8 @@ Fragmento HTML para la tabla de trámites (se actualiza vía HTMX)
                             {% if tramite.archivo_pdf or tramite.archivo_pdf_firmado %}
                                 <button 
                                     hx-get="{% url 'tramites:vista_previa_pdf' id=tramite.uuid %}"
-                                    hx-target="body"
-                                    hx-swap="beforeend"
+                                    hx-target="#modal-slot"
+                                    hx-swap="innerHTML"
                                     class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600 text-xs flex items-center gap-1">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -89,8 +89,8 @@ Fragmento HTML para la tabla de trámites (se actualiza vía HTMX)
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="px-6 py-4 text-center text-gray-500">
-                        No se encontraron trámites.
+                    <td colspan="6">
+                        {% url 'consultar_tramite' as crear_url %}{% include 'components/empty_state.html' with message="No se encontraron trámites." action_url=crear_url action_label="Crear Nuevo Trámite" %}
                     </td>
                 </tr>
                 {% endfor %}

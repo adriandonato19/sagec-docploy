@@ -1,7 +1,7 @@
 Mapa de Rutas - SAGEC (MICI)
 Este documento define la estructura de URLs del sistema y las restricciones de acceso por rol: Fiscal, Trabajador y Director.
 1. Módulo de Identidad (/auth/)
-Gestiona el acceso, registro y perfiles de usuario.
+Gestiona el acceso y perfiles de usuario.
 Ruta
 URL
 Acceso
@@ -10,10 +10,6 @@ login
 /login/
 Público
 Email (.gob.pa), Password, Captcha y 2FA.
-register
-/registro/
-Público
-Formulario de registro con validación de cédula.
 logout
 /logout/
 Autenticado
@@ -21,11 +17,23 @@ Cierre de sesión y limpieza de cookies.
 perfil
 /configuracion/
 Todos
-Edición de datos y cambio de contraseña.
+Edición de datos y cambio de contraseña. Si la clave es temporal, el cambio aquí es obligatorio.
 lista_usuarios
 /usuarios/
 Director
 Gestión de usuarios y log de actividad.
+crear_usuario
+/usuarios/crear/
+Director
+Alta de usuarios FISCAL o TRABAJADOR con contraseña temporal.
+editar_usuario
+/usuarios/<id>/editar/
+Director
+Edición de usuarios FISCAL o TRABAJADOR.
+toggle_activo
+/usuarios/<id>/toggle-activo/
+Director
+Activar o desactivar usuarios gestionables.
 
 2. Módulo de Integración (/consultas/)
 Consultas a la API de Panamá Emprende y vistas de resultados.
@@ -76,4 +84,3 @@ descargar
 /<uuid:id>/pdf/
 Todos
 Descarga del documento final firmado.
-

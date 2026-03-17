@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block title %}Editar Usuario - SAGEC{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">Editar Usuario</h1>
+            <p class="text-sm text-gray-600 mt-1">`Username` y cédula son inmutables desde el panel.</p>
+        </div>
+        <a href="{% url 'identidad:lista_usuarios' %}" class="text-sm font-medium text-gray-600 hover:text-gray-800">Volver</a>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="grid grid-cols-1 gap-4 rounded-lg bg-gray-50 p-4 mb-6 md:grid-cols-2">
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Username</p>
+                <p class="mt-1 text-sm text-gray-800">{{ usuario_objetivo.username }}</p>
+            </div>
+            <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-gray-500">Cédula</p>
+                <p class="mt-1 text-sm text-gray-800">{{ usuario_objetivo.cedula }}</p>
+            </div>
+        </div>
+
+        <form method="post" class="space-y-4">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {% for error in form.non_field_errors %}
+                <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% for field in form %}
+            <div>
+                <label for="{{ field.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                    {{ field.label }}{% if field.field.required %} <span class="text-red-500">*</span>{% endif %}
+                </label>
+                {{ field }}
+                {% if field.help_text %}
+                <p class="mt-1 text-xs text-gray-500">{{ field.help_text }}</p>
+                {% endif %}
+                {% for error in field.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endfor %}
+
+            <div class="pt-4 flex items-center justify-end gap-3">
+                <a href="{% url 'identidad:lista_usuarios' %}" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancelar</a>
+                <button type="submit" class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">Guardar cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

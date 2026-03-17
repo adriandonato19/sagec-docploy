@@ -71,27 +71,26 @@ def generar_qr_code(url_validacion):
     return f"data:image/png;base64,{img_str}"
 
 
-def generar_pdf_tramite(tramite):
+def generar_html_tramite(tramite):
     """
-    Genera el PDF de un trámite usando WeasyPrint.
-    Para certificados usa la plantilla oficial, para oficios usa la plantilla estándar.
-    
+    Genera el HTML renderizado de un trámite (sin convertir a PDF).
+
     Args:
         tramite: Instancia de Tramite
-    
+
     Returns:
-        BytesIO con el contenido del PDF
-    
+        String con el HTML renderizado
+
     $Reusable$
     """
     # Obtener datos de empresa del snapshot
     empresa_data = tramite.empresa_snapshot if isinstance(tramite.empresa_snapshot, dict) else {}
-    
+
     # Construir ubicación completa si no existe
     if 'ubicacion_completa' not in empresa_data:
         from integracion.adapters import construir_ubicacion_completa
         empresa_data['ubicacion_completa'] = construir_ubicacion_completa(empresa_data)
-    
+
     # Normalizar empresa_snapshot a lista
     snapshot = tramite.empresa_snapshot
     if isinstance(snapshot, list):
@@ -149,37 +148,72 @@ def generar_pdf_tramite(tramite):
         'logo_path': str(logo_path),
         'footer_path': str(footer_path),
     }
-    
-    # Renderizar plantilla HTML del documento principal
-    html_content = render_to_string(template_name, context)
 
-    # Convertir HTML a PDF
+    return render_to_string(template_name, context)
+
+
+def generar_pdf_desde_html(html_content):
+    """
+    Convierte HTML renderizado a PDF usando WeasyPrint.
+
+    Args:
+        html_content: String con el HTML a convertir
+
+    Returns:
+        BytesIO con el contenido del PDF
+
+    $Reusable$
+    """
     base_url = str(settings.BASE_DIR)
-    oficio_pdf = BytesIO()
-    HTML(string=html_content, base_url=base_url).write_pdf(oficio_pdf)
-    oficio_pdf.seek(0)
+    pdf_buffer = BytesIO()
+    HTML(string=html_content, base_url=base_url).write_pdf(pdf_buffer)
+    pdf_buffer.seek(0)
+    return pdf_buffer
 
-    # Si es OFICIO y hay empresas, generar aviso de operación como PDF separado y fusionar
-    if tramite.tipo_documento == 'OFICIO' and empresas_list:
-        aviso_html = render_to_string(
-            'tramites/pdf/aviso_operacion_standalone.html', context
-        )
-        aviso_pdf = BytesIO()
-        HTML(string=aviso_html, base_url=base_url).write_pdf(aviso_pdf)
-        aviso_pdf.seek(0)
 
-        # Fusionar ambos PDFs
-        writer = PdfWriter()
-        for reader in [PdfReader(oficio_pdf), PdfReader(aviso_pdf)]:
-            for page in reader.pages:
-                writer.add_page(page)
+def generar_pdf_tramite(tramite):
+    """
+    Genera el PDF de un trámite usando WeasyPrint.
+    Si el trámite tiene HTML editado, usa ese; si no, genera el HTML desde la plantilla.
 
-        merged = BytesIO()
-        writer.write(merged)
-        merged.seek(0)
-        return merged
+    Args:
+        tramite: Instancia de Tramite
 
-    return oficio_pdf
+    Returns:
+        BytesIO con el contenido del PDF
+
+    $Reusable$
+    """
+    if tramite.html_pdf_editado:
+        html_content = tramite.html_pdf_editado
+    else:
+        html_content = generar_html_tramite(tramite)
+
+    return generar_pdf_desde_html(html_content)
+
+
+def extraer_contenido_editable(html_completo):
+    """Extrae innerHTML de .document-container del HTML del PDF."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html_completo, 'html.parser')
+    container = soup.select_one('.document-container')
+    if not container:
+        raise ValueError("No se encontró .document-container en el HTML")
+    return container.decode_contents()
+
+
+def reinyectar_contenido_editado(html_original, contenido_editado):
+    """Reemplaza innerHTML de .document-container con contenido editado."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html_original, 'html.parser')
+    container = soup.select_one('.document-container')
+    if not container:
+        raise ValueError("No se encontró .document-container en el HTML")
+    container.clear()
+    edited_soup = BeautifulSoup(contenido_editado, 'html.parser')
+    for child in list(edited_soup.children):
+        container.append(child)
+    return str(soup)
 
 
 def calcular_hash_pdf(pdf_bytes):

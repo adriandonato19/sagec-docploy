@@ -5,7 +5,7 @@ from django.http import Http404
 from .services import buscar_empresa
 from .adapters import normalizar_datos_empresa, construir_ubicacion_completa
 from .api_client import consultar_empresa as api_consultar
-from auditoria.services import registrar_evento, obtener_ip_cliente
+from auditoria.services import registrar_evento, obtener_ip_cliente, registrar_consulta_secuencial
 from auditoria.models import BitacoraEvento
 
 
@@ -31,12 +31,39 @@ def api_search_view(request):
 
     # Registrar evento de consulta
     ip_cliente = obtener_ip_cliente(request)
+
+    # Construir resumen de resultados para la consulta secuencial
+    resultados_detalle = []
+    num_resultados = 0
+    if resultado and resultado.get('resultados_raw'):
+        num_resultados = len(resultado['resultados_raw'])
+        for raw in resultado['resultados_raw']:
+            resultados_detalle.append({
+                'numero_aviso': raw.get('aviso_operacion', ''),
+                'razon_social': raw.get('razon_social', ''),
+                'estatus': raw.get('estatus', ''),
+            })
+
+    # Registrar consulta secuencial
+    consulta_seq = registrar_consulta_secuencial(
+        consulta=query,
+        usuario=request.user,
+        ip_origen=ip_cliente,
+        resultados_encontrados=num_resultados,
+        resultados_detalle=resultados_detalle,
+    )
+
+    # Acumular IDs de consultas secuenciales en la sesión
+    consultas_ids = request.session.get('consultas_secuencia_ids', [])
+    consultas_ids.append(consulta_seq.numero)
+    request.session['consultas_secuencia_ids'] = consultas_ids
+
     registrar_evento(
         tipo_evento=BitacoraEvento.CONSULTA_API,
         actor=request.user,
         ip_origen=ip_cliente,
         descripcion=f'Consulta de empresa por RUC: {query}',
-        metadata={'query': query, 'encontrado': resultado is not None}
+        metadata={'query': query, 'encontrado': resultado is not None, 'consulta_secuencia': consulta_seq.numero}
     )
 
     if not resultado:

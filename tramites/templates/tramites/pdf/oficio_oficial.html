@@ -340,6 +340,7 @@
                 En atención al Oficio No. <strong>{{ tramite.numero_oficio_externo|default:"[N° OFICIO]" }}</strong>, Carpeta No. <strong>{{ tramite.numero_carpetilla|default:"[N° CARPETILLA]" }}</strong>, con fecha del <strong>{{ fecha_solicitud_formateada }}</strong>, y recibido en nuestro despacho el <strong>{{ fecha_recibido_formateada|default:fecha_solicitud_formateada }}</strong>, suscrito por su persona mediante la cual nos solicita <strong>{{ tramite.objetivo_solicitud|default:"[OBJETIVO DE LA SOLICITUD]" }}</strong>, por lo cual, en tal sentido tenemos a bien manifestarle lo siguiente:
             </p>
 
+            {% if empresas %}
             <!-- Párrafo de certificación -->
             <p class="parrafo">
                 La Dirección General de Comercio Interior, amparados por la Ley No.5 de 11 de enero de 2007, que agiliza el proceso de apertura de empresas y establece otras disposiciones, luego de la revisión correspondiente a nuestros archivos y al sistema <strong>www.panamaemprende.gob.pa</strong>, podemos <strong>CERTIFICAR</strong> que <strong>CONSTA</strong> registro de lo siguiente:
@@ -356,6 +357,7 @@
                 </ul>
             </div>
             {% endfor %}
+            {% endif %}
 
             <!-- Bloque de preguntas (dinámico) -->
             {% if preguntas %}

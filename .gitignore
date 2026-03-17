@@ -65,6 +65,11 @@ pytest_debug.log
 *.pdf
 .fonts/
 
+# Digital signature certificates
+certs/
+*.p12
+*.pfx
+
 # OS generated files
 .DS_Store
 .DS_Store?

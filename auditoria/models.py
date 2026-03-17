@@ -18,6 +18,7 @@ class BitacoraEvento(models.Model):
     RECHAZO = 'RECHAZO'
     FIRMA = 'FIRMA'
     DESCARGA = 'DESCARGA'
+    GESTION_USUARIO = 'GESTION_USUARIO'
     
     TIPOS_EVENTO = [
         (LOGIN, 'Inicio de Sesión'),
@@ -29,6 +30,7 @@ class BitacoraEvento(models.Model):
         (RECHAZO, 'Rechazo de Trámite'),
         (FIRMA, 'Firma de Documento'),
         (DESCARGA, 'Descarga de Documento'),
+        (GESTION_USUARIO, 'Gestión de Usuario'),
     ]
     
     # Campos principales
@@ -58,3 +60,32 @@ class BitacoraEvento(models.Model):
     
     def __str__(self):
         return f"{self.get_tipo_evento_display()} - {self.actor.username} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+
+
+class ConsultaSecuencia(models.Model):
+    """
+    Registro secuencial de cada consulta de empresa.
+    Audita: qué se buscó, cuándo, quién, cuántos resultados, y a qué trámite se asoció.
+    """
+    numero = models.AutoField(primary_key=True)
+    consulta = models.CharField(max_length=200)
+    resultados_encontrados = models.PositiveIntegerField(default=0)
+    resultados_detalle = models.JSONField(default=list, blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    usuario = models.ForeignKey(
+        'identidad.UsuarioMICI', on_delete=models.PROTECT,
+        related_name='consultas_secuencia'
+    )
+    ip_origen = models.GenericIPAddressField()
+    tramite = models.ForeignKey(
+        'tramites.Tramite', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='consultas_asociadas'
+    )
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name = 'Consulta Secuencial'
+        verbose_name_plural = 'Consultas Secuenciales'
+
+    def __str__(self):
+        return f"#{self.numero} - {self.consulta} - {self.usuario.username} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"

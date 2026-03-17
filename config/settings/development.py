@@ -1,7 +1,8 @@
-# Importar usando importación dinámica para compatibilidad con carga desde config/settings.py
-import sys
 import importlib.util
+import os
 from pathlib import Path
+
+import environ
 
 # Detectar si estamos siendo cargados dinámicamente (cuando __package__ es None)
 # o si estamos siendo importados normalmente
@@ -31,38 +32,43 @@ for attr_name in dir(security_module):
     if not attr_name.startswith('_'):
         globals()[attr_name] = getattr(security_module, attr_name)
 
-# 1. Modo de depuración activo para ver errores detallados
-DEBUG = True
+env = environ.Env()
+TRUE_VALUES = {'1', 'true', 'yes', 'on'}
 
-# 2. Clave secreta insegura solo para desarrollo local
-SECRET_KEY = 'django-insecure-local-dev-key-mici-sagec'
+# 1. Base de Datos: PostgreSQL en Railway cuando exista DATABASE_URL, SQLite local como fallback.
+database_url = os.environ.get('DATABASE_URL')
+use_database_url = os.environ.get('USE_DATABASE_URL')
+if use_database_url is None:
+    use_database_url = not DEBUG
+else:
+    use_database_url = use_database_url.strip().lower() in TRUE_VALUES
 
-# 3. Permitir cualquier host en local
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0']
-
-# 4. Base de Datos Local (SQLite)
-# Ideal para la Fase 2 de desarrollo antes de pasar a PostgreSQL en el MICI
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if database_url and use_database_url:
+    DATABASES = {
+        'default': env.db('DATABASE_URL'),
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
-# 5. Desactivar restricciones de seguridad para desarrollo
-# Esto evita que necesites HTTPS (SSL) en tu propia computadora
-SECURE_SSL_REDIRECT = False
-SESSION_COOKIE_SECURE = False
-CSRF_COOKIE_SECURE = False
-SECURE_HSTS_SECONDS = 0
+# 2. Desactivar restricciones de seguridad solo durante desarrollo local.
+if DEBUG:
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0
 
-# 6. Configuración de Correo para Pruebas
+# 3. Configuración de Correo para Pruebas
 # Los correos no se envían realmente, se imprimen en la consola de VS Code
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-# 7. Configuración de AXES para desarrollo
+# 4. Configuración de AXES para desarrollo
 # Evita que te bloquee a ti mismo si fallas la contraseña probando
-AXES_ENABLED = False 
+AXES_ENABLED = not DEBUG
 
-# 8. Configuración de archivos estáticos y media locales
+# 5. Configuración de archivos estáticos y media locales
 STATICFILES_DIRS = [BASE_DIR / "static"]

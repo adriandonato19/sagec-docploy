@@ -4,19 +4,22 @@ from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.views.decorators.http import require_http_methods
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 from django.http import HttpResponse, Http404
 from django.utils import timezone
 from django.conf import settings
 from pathlib import Path
 import os
 from .models import Tramite, PreguntaOficio
-from .services.generador_pdf import generar_pdf_tramite, calcular_hash_pdf
+from .services.generador_pdf import generar_pdf_tramite, generar_html_tramite, generar_pdf_desde_html, calcular_hash_pdf, extraer_contenido_editable, reinyectar_contenido_editado
+from .services.firma_digital import certificado_disponible, firmar_pdf_con_certificado
+from .services.notificaciones import enviar_notificacion_firma
 from identidad.decorators import require_rol
 from identidad.models import UsuarioMICI
 from integracion.services import buscar_empresa
 from integracion.adapters import normalizar_datos_empresa, construir_ubicacion_completa
 from auditoria.services import registrar_evento, obtener_ip_cliente
-from auditoria.models import BitacoraEvento
+from auditoria.models import BitacoraEvento, ConsultaSecuencia
 
 
 @login_required
@@ -52,6 +55,7 @@ def bandeja_admin_view(request):
         'TODOS': Tramite.objects.count(),
         Tramite.BORRADOR: Tramite.objects.filter(estado=Tramite.BORRADOR).count(),
         Tramite.PENDIENTE: Tramite.objects.filter(estado=Tramite.PENDIENTE).count(),
+        Tramite.EN_REVISION: Tramite.objects.filter(estado=Tramite.EN_REVISION).count(),
         Tramite.APROBADO: Tramite.objects.filter(estado=Tramite.APROBADO).count(),
         Tramite.FIRMADO: Tramite.objects.filter(estado=Tramite.FIRMADO).count(),
         Tramite.RECHAZADO: Tramite.objects.filter(estado=Tramite.RECHAZADO).count(),
@@ -65,6 +69,7 @@ def bandeja_admin_view(request):
     tabs = [
         {'label': 'Todos', 'url': '?estado=', 'count': contadores['TODOS'], 'active': not estado_filtro or estado_filtro == 'TODOS'},
         {'label': 'Pendientes', 'url': f'?estado={Tramite.PENDIENTE}', 'count': contadores[Tramite.PENDIENTE], 'active': estado_filtro == Tramite.PENDIENTE},
+        {'label': 'En revisión', 'url': f'?estado={Tramite.EN_REVISION}', 'count': contadores[Tramite.EN_REVISION], 'active': estado_filtro == Tramite.EN_REVISION},
         {'label': 'Aprobados', 'url': f'?estado={Tramite.APROBADO}', 'count': contadores[Tramite.APROBADO], 'active': estado_filtro == Tramite.APROBADO},
         {'label': 'Firmados', 'url': f'?estado={Tramite.FIRMADO}', 'count': contadores[Tramite.FIRMADO], 'active': estado_filtro == Tramite.FIRMADO},
         {'label': 'Rechazados', 'url': f'?estado={Tramite.RECHAZADO}', 'count': contadores[Tramite.RECHAZADO], 'active': estado_filtro == Tramite.RECHAZADO},
@@ -103,11 +108,6 @@ def crear_tramite_view(request):
 
         # Empresas del carrito en sesión
         empresas_cart = request.session.get('empresas_cart', [])
-
-        # Oficios requieren al menos 1 empresa
-        if tipo_documento == 'OFICIO' and not empresas_cart:
-            messages.error(request, 'Debe agregar al menos una empresa para crear un oficio.')
-            return redirect('consultar_tramite')
 
         # Oficios requieren carpetilla y oficio externo
         if tipo_documento == 'OFICIO':
@@ -160,6 +160,11 @@ def crear_tramite_view(request):
                 texto_pregunta=texto,
             )
 
+        # Vincular consultas secuenciales al trámite
+        consultas_ids = request.session.pop('consultas_secuencia_ids', [])
+        if consultas_ids:
+            ConsultaSecuencia.objects.filter(numero__in=consultas_ids).update(tramite=tramite)
+
         # Limpiar carrito de sesión
         request.session.pop('empresas_cart', None)
 
@@ -177,8 +182,9 @@ def crear_tramite_view(request):
         messages.success(request, 'Trámite creado correctamente.')
         return redirect('tramites:detalle', id=tramite.uuid)
 
-    # GET: limpiar carrito y mostrar selector de tipo
+    # GET: limpiar carrito y consultas secuenciales, mostrar selector de tipo
     request.session.pop('empresas_cart', None)
+    request.session.pop('consultas_secuencia_ids', None)
     return render(request, 'tramites/consultar.html')
 
 
@@ -304,9 +310,14 @@ def aprobar_view(request, id):
             ip_origen=ip_cliente,
             recurso=tramite,
             descripcion=f'Aprobación de trámite - Estado anterior: {estado_anterior}',
-            metadata={'estado_anterior': estado_anterior, 'revisor': request.user.username}
+            metadata={'estado_anterior': estado_anterior, 'revisor': request.user.username, 'fase': 'solicitud'}
         )
         
+        # Guardar HTML renderizado para posible edición posterior
+        if not tramite.html_pdf_editado:
+            tramite.html_pdf_editado = generar_html_tramite(tramite)
+            tramite.save(update_fields=['html_pdf_editado'])
+
         # Generar PDF al aprobar
         pdf_bytesio = generar_pdf_tramite(tramite)
         pdf_content = pdf_bytesio.read()
@@ -322,7 +333,107 @@ def aprobar_view(request, id):
         tramite.archivo_pdf.name = f'temp_pdfs/{pdf_filename}'
         tramite.save()
 
-        messages.success(request, 'Trámite aprobado correctamente.')
+        messages.success(request, 'Solicitud aprobada. Revise y apruebe el PDF antes de enviarlo a firma.')
+    except Exception as e:
+        messages.error(request, str(e))
+
+    return redirect('tramites:detalle', id=tramite.uuid)
+
+
+@login_required
+@require_rol(UsuarioMICI.TRABAJADOR, UsuarioMICI.DIRECTOR)
+@require_http_methods(["POST"])
+def aprobar_pdf_view(request, id):
+    """Aprobar el PDF final de un trámite en revisión."""
+    tramite = get_object_or_404(Tramite, uuid=id)
+
+    if tramite.estado != Tramite.EN_REVISION:
+        messages.error(request, 'El trámite no está en revisión.')
+        return redirect('tramites:detalle', id=tramite.uuid)
+
+    try:
+        estado_anterior = tramite.estado
+        tramite.aprobar_pdf(request.user)
+
+        ip_cliente = obtener_ip_cliente(request)
+        registrar_evento(
+            tipo_evento=BitacoraEvento.APROBACION,
+            actor=request.user,
+            ip_origen=ip_cliente,
+            recurso=tramite,
+            descripcion=f'Aprobación del PDF - Estado anterior: {estado_anterior}',
+            metadata={'estado_anterior': estado_anterior, 'revisor': request.user.username, 'fase': 'pdf'}
+        )
+
+        messages.success(request, 'PDF aprobado correctamente. El trámite quedó aprobado.')
+    except Exception as e:
+        messages.error(request, str(e))
+
+    return redirect('tramites:detalle', id=tramite.uuid)
+
+
+@login_required
+@require_rol(UsuarioMICI.TRABAJADOR, UsuarioMICI.DIRECTOR)
+@require_http_methods(["POST"])
+def rechazar_view(request, id):
+    """Rechazar un trámite pendiente con motivo obligatorio."""
+    tramite = get_object_or_404(Tramite, uuid=id)
+    motivo = request.POST.get('motivo_rechazo', '').strip()
+
+    if tramite.estado != Tramite.PENDIENTE:
+        messages.error(request, 'Solo se pueden rechazar trámites pendientes.')
+        return redirect('tramites:detalle', id=tramite.uuid)
+
+    try:
+        estado_anterior = tramite.estado
+        tramite.rechazar(request.user, motivo)
+
+        ip_cliente = obtener_ip_cliente(request)
+        registrar_evento(
+            tipo_evento=BitacoraEvento.RECHAZO,
+            actor=request.user,
+            ip_origen=ip_cliente,
+            recurso=tramite,
+            descripcion=f'Rechazo de trámite - Estado anterior: {estado_anterior}',
+            metadata={'estado_anterior': estado_anterior, 'revisor': request.user.username, 'motivo_rechazo': motivo}
+        )
+
+        messages.success(request, 'Solicitud rechazada correctamente.')
+    except Exception as e:
+        messages.error(request, str(e))
+
+    return redirect('tramites:detalle', id=tramite.uuid)
+
+
+@login_required
+@require_rol(UsuarioMICI.TRABAJADOR, UsuarioMICI.DIRECTOR)
+@require_http_methods(["POST"])
+def regresar_view(request, id):
+    """Regresar un trámite al estado anterior del flujo."""
+    tramite = get_object_or_404(Tramite, uuid=id)
+    nota_regreso = request.POST.get('nota_regreso', '').strip()
+
+    try:
+        estado_anterior = tramite.estado
+        tramite.regresar(request.user)
+
+        ip_cliente = obtener_ip_cliente(request)
+        registrar_evento(
+            tipo_evento=BitacoraEvento.CAMBIO_ESTADO,
+            actor=request.user,
+            ip_origen=ip_cliente,
+            recurso=tramite,
+            descripcion=f'Regreso de trámite - Estado anterior: {estado_anterior}',
+            metadata={
+                'estado_anterior': estado_anterior,
+                'estado_nuevo': tramite.estado,
+                'revisor': request.user.username,
+                'nota_regreso': nota_regreso,
+                'accion': 'regresar',
+            }
+        )
+
+        messages.success(request, f'Trámite regresado correctamente a {tramite.get_estado_display().lower()}.')
     except Exception as e:
         messages.error(request, str(e))
 
@@ -333,59 +444,51 @@ def aprobar_view(request, id):
 @require_rol(UsuarioMICI.DIRECTOR)
 @require_http_methods(["GET", "POST"])
 def firmar_view(request, id):
-    """Firmar un trámite aprobado: descargar PDF, firmar externamente y subirlo."""
+    """Firmar un trámite aprobado usando certificado digital .p12 del servidor."""
     tramite = get_object_or_404(Tramite, uuid=id)
-    
+
     if tramite.estado != Tramite.APROBADO:
-        messages.error(request, f'El trámite debe estar aprobado para poder firmarlo.')
+        messages.error(request, 'El trámite debe estar aprobado para poder firmarlo.')
         return redirect('tramites:detalle', id=tramite.uuid)
-    
+
     if request.method == 'POST':
-        # Validar que se haya subido un archivo
-        if 'archivo_pdf_firmado' not in request.FILES:
-            messages.error(request, 'Debe subir el PDF firmado.')
-            return render(request, 'tramites/firmar.html', {'tramite': tramite})
-        
-        archivo_subido = request.FILES['archivo_pdf_firmado']
-        
-        # Validar que sea PDF
-        if not archivo_subido.name.lower().endswith('.pdf'):
-            messages.error(request, 'El archivo debe ser un PDF (.pdf).')
-            return render(request, 'tramites/firmar.html', {'tramite': tramite})
-        
-        # Validar tamaño (máximo 10MB)
-        if archivo_subido.size > 10 * 1024 * 1024:
-            messages.error(request, 'El archivo PDF no puede exceder 10MB.')
-            return render(request, 'tramites/firmar.html', {'tramite': tramite})
-        
         try:
+            # Verificar disponibilidad del certificado
+            if not certificado_disponible():
+                messages.error(request, 'El certificado digital no está configurado en el servidor.')
+                return render(request, 'tramites/firmar.html', {'tramite': tramite})
+
             estado_anterior = tramite.estado
-            
-            # Leer contenido del PDF subido
-            pdf_content = archivo_subido.read()
-            
+
+            # Leer PDF aprobado desde disco
+            pdf_path = Path(__file__).parent / tramite.archivo_pdf.name
+            if not pdf_path.exists():
+                messages.error(request, 'No se encontró el PDF aprobado.')
+                return render(request, 'tramites/firmar.html', {'tramite': tramite})
+
+            with open(pdf_path, 'rb') as f:
+                pdf_bytes = f.read()
+
+            # Firmar el PDF con el certificado .p12
+            pdf_firmado = firmar_pdf_con_certificado(pdf_bytes)
+
             # Calcular hash SHA-256 del PDF firmado
-            hash_documento = calcular_hash_pdf(pdf_content)
-            
+            hash_documento = calcular_hash_pdf(pdf_firmado)
+
             # Guardar PDF firmado en carpeta temporal
             temp_pdf_dir = Path(__file__).parent / 'temp_pdfs' / 'firmados'
             temp_pdf_dir.mkdir(parents=True, exist_ok=True)
-            
+
             pdf_filename = f'tramite_{tramite.uuid}_firmado.pdf'
-            pdf_path = temp_pdf_dir / pdf_filename
-            
-            with open(pdf_path, 'wb') as f:
-                f.write(pdf_content)
-            
-            # Resetear el archivo para guardarlo en el modelo
-            archivo_subido.seek(0)
-            
-            # Guardar en el modelo usando el FileField
-            tramite.archivo_pdf_firmado.save(pdf_filename, archivo_subido, save=False)
-            
-            # Marcar como firmado con el hash (el archivo ya está guardado)
+            firmado_path = temp_pdf_dir / pdf_filename
+
+            with open(firmado_path, 'wb') as f:
+                f.write(pdf_firmado)
+
+            # Actualizar modelo
+            tramite.archivo_pdf_firmado.name = f'temp_pdfs/firmados/{pdf_filename}'
             tramite.marcar_firmado(request.user, hash_documento=hash_documento)
-            
+
             # Registrar evento de firma
             ip_cliente = obtener_ip_cliente(request)
             registrar_evento(
@@ -394,20 +497,22 @@ def firmar_view(request, id):
                 ip_origen=ip_cliente,
                 recurso=tramite,
                 descripcion=f'Firma de documento - Estado anterior: {estado_anterior}',
-                metadata={'estado_anterior': estado_anterior, 'hash': hash_documento, 'archivo': pdf_filename}
+                metadata={'estado_anterior': estado_anterior, 'hash': hash_documento, 'archivo': pdf_filename, 'metodo': 'certificado_p12'}
             )
-            
-            messages.success(request, 'PDF firmado subido correctamente. El trámite ha sido marcado como firmado.')
+
+            messages.success(request, 'Documento firmado digitalmente con éxito.')
+            enviar_notificacion_firma(tramite)
             return redirect('tramites:detalle', id=tramite.uuid)
         except Exception as e:
-            messages.error(request, f'Error al procesar el PDF firmado: {str(e)}')
-    
+            messages.error(request, f'Error al firmar el documento: {str(e)}')
+
     return render(request, 'tramites/firmar.html', {
         'tramite': tramite
     })
 
 
 @login_required
+@xframe_options_sameorigin
 def descargar_view(request, id):
     """Descargar el PDF de un trámite firmado."""
     tramite = get_object_or_404(Tramite, uuid=id)
@@ -649,3 +754,71 @@ def remover_empresa_hx(request, index):
     })
     response['HX-Trigger'] = 'empresas-changed'
     return response
+
+
+@login_required
+@require_rol(UsuarioMICI.TRABAJADOR, UsuarioMICI.DIRECTOR)
+@require_http_methods(["GET", "POST"])
+def editar_pdf_view(request, id):
+    """Editar el HTML del PDF de un trámite en revisión."""
+    tramite = get_object_or_404(Tramite, uuid=id)
+
+    if tramite.estado != Tramite.EN_REVISION:
+        messages.error(request, 'Solo se puede editar el PDF de trámites en revisión.')
+        return redirect('tramites:detalle', id=tramite.uuid)
+
+    # HTML completo (original o ya editado)
+    html_completo = tramite.html_pdf_editado or generar_html_tramite(tramite)
+
+    if request.method == 'POST':
+        contenido_editado = request.POST.get('contenido_editado', '').strip()
+        if not contenido_editado:
+            messages.error(request, 'El contenido no puede estar vacío.')
+            return render(request, 'tramites/editar_pdf.html', {
+                'tramite': tramite,
+                'contenido_editable': extraer_contenido_editable(html_completo),
+            })
+
+        # Re-inyectar contenido editado en el HTML completo
+        html_final = reinyectar_contenido_editado(html_completo, contenido_editado)
+
+        # Guardar HTML editado
+        tramite.html_pdf_editado = html_final
+        tramite.save(update_fields=['html_pdf_editado'])
+
+        # Regenerar PDF con el HTML editado
+        pdf_bytesio = generar_pdf_desde_html(html_final)
+        pdf_content = pdf_bytesio.read()
+
+        temp_pdf_dir = Path(__file__).parent / 'temp_pdfs'
+        temp_pdf_dir.mkdir(exist_ok=True)
+        pdf_filename = f'tramite_{tramite.uuid}.pdf'
+        pdf_path = temp_pdf_dir / pdf_filename
+
+        with open(pdf_path, 'wb') as f:
+            f.write(pdf_content)
+
+        tramite.archivo_pdf.name = f'temp_pdfs/{pdf_filename}'
+        tramite.save(update_fields=['archivo_pdf'])
+
+        # Registrar evento
+        ip_cliente = obtener_ip_cliente(request)
+        registrar_evento(
+            tipo_evento=BitacoraEvento.CAMBIO_ESTADO,
+            actor=request.user,
+            ip_origen=ip_cliente,
+            recurso=tramite,
+            descripcion=f'Edición de HTML del PDF del trámite {tramite.numero_referencia or tramite.uuid}',
+            metadata={'accion': 'editar_pdf'}
+        )
+
+        messages.success(request, 'PDF actualizado correctamente.')
+        return redirect('tramites:detalle', id=tramite.uuid)
+
+    # GET: extraer solo el contenido editable
+    contenido_editable = extraer_contenido_editable(html_completo)
+
+    return render(request, 'tramites/editar_pdf.html', {
+        'tramite': tramite,
+        'contenido_editable': contenido_editable,
+    })

@@ -2,7 +2,7 @@
 Cliente HTTP para la API de Panamá Emprende.
 """
 import logging
-from typing import Optional, List, Dict
+from typing import Dict, Optional
 
 import requests
 from django.conf import settings
@@ -10,6 +10,28 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 TIMEOUT_SECONDS = 15
+
+
+def _normalizar_tipo_persona(tipo: str) -> str:
+    """Normaliza el tipo de persona para comparaciones internas."""
+    return str(tipo or '').strip().lower()
+
+
+def _resolver_ruc(registro: Dict) -> str:
+    """
+    Devuelve el identificador fiscal a usar en la app.
+
+    Para persona natural, cuando la API no envía RUC, se usa la cédula del
+    representante legal como valor operativo y visible del campo.
+    """
+    ruc = str(registro.get('ruc') or '').strip()
+    if ruc:
+        return ruc
+
+    if _normalizar_tipo_persona(registro.get('tipo')) == 'natural':
+        return str(registro.get('cedula_representante') or '').strip()
+
+    return ''
 
 
 def consultar_empresa(busqueda: str, page: int = 1) -> Optional[Dict]:
@@ -98,18 +120,22 @@ def _mapear_campos(registro: Dict) -> Dict:
     razon_social = (registro.get('razon_social_juridica') or
                     registro.get('razon_social_natural') or '')
 
-    # Extraer DV del RUC (formato: "155700944-2-2021" → ruc="155700944-2-2021", dv="")
-    ruc = registro.get('ruc', '')
+    # Para persona natural sin RUC, usamos la cédula del representante.
+    ruc = _resolver_ruc(registro)
     dv = ''  # La API real no separa el DV
+    tipo = str(registro.get('tipo') or '').strip()
+    representante_legal = str(registro.get('representante_legal') or '').strip()
+    cedula_representante = str(registro.get('cedula_representante') or '').strip()
 
     return {
         'aviso_operacion': registro.get('numero_aviso', ''),
         'numero_licencia': '',
         'razon_comercial': (registro.get('nombreComercial') or '').strip(),
-        'representante_legal': registro.get('representante_legal', ''),
-        'cedula_representante': registro.get('cedula_representante',''),
+        'representante_legal': representante_legal,
+        'cedula_representante': cedula_representante,
         'ruc': ruc,
         'dv': dv,
+        'tipo': tipo,
         'razon_social': razon_social.strip(),
         'fecha_inicio_operaciones': registro.get('fecha_inicio_operaciones', ''),
         'provincia': registro.get('provincia', ''),

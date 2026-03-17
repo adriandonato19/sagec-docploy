@@ -8,7 +8,7 @@
         <h1 class="text-2xl font-bold text-gray-800">Firmar Trámite</h1>
         <a href="{% url 'tramites:detalle' id=tramite.uuid %}" class="text-blue-600 hover:underline">← Volver al detalle</a>
     </div>
-    
+
     <div class="bg-white shadow-lg rounded-lg p-6 mb-6">
         <div class="mb-6">
             <h2 class="text-lg font-semibold mb-4">Información del Trámite</h2>
@@ -24,31 +24,21 @@
             </div>
         </div>
     </div>
-    
-    <div class="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-        <h3 class="text-lg font-semibold text-blue-900 mb-3">Instrucciones para Firmar</h3>
-        <ol class="list-decimal list-inside space-y-2 text-blue-800">
-            <li>Descargue el PDF aprobado usando el botón de abajo</li>
-            <li>Firme el documento usando su herramienta de firma digital externa</li>
-            <li>Suba el PDF firmado usando el formulario de abajo</li>
-            <li>El sistema calculará automáticamente el hash SHA-256 del documento firmado</li>
-        </ol>
-    </div>
-    
+
     <div class="bg-white shadow-lg rounded-lg p-6 mb-6">
-        <h3 class="text-lg font-semibold mb-4">Descargar PDF para Firmar</h3>
+        <h3 class="text-lg font-semibold mb-4">Revisar PDF antes de Firmar</h3>
         <div class="flex gap-4 mb-6">
-            <a href="{% url 'tramites:descargar' id=tramite.uuid %}" 
+            <a href="{% url 'tramites:descargar' id=tramite.uuid %}"
                class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                 </svg>
                 Descargar PDF Aprobado
             </a>
-            <button 
+            <button
                 hx-get="{% url 'tramites:vista_previa_pdf' id=tramite.uuid %}"
-                hx-target="body"
-                hx-swap="beforeend"
+                hx-target="#modal-slot"
+                hx-swap="innerHTML"
                 class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -58,33 +48,22 @@
             </button>
         </div>
     </div>
-    
+
     <div class="bg-white shadow-lg rounded-lg p-6">
-        <h3 class="text-lg font-semibold mb-4">Subir PDF Firmado</h3>
-        <form method="post" action="{% url 'tramites:firmar' id=tramite.uuid %}" enctype="multipart/form-data">
+        <h3 class="text-lg font-semibold mb-4">Firmar con Certificado Digital</h3>
+        <p class="text-sm text-gray-600 mb-4">
+            Al hacer clic en el botón, el documento será firmado automáticamente con el certificado institucional configurado en el servidor.
+        </p>
+        <form id="form-firmar-tramite" method="post" action="{% url 'tramites:firmar' id=tramite.uuid %}">
             {% csrf_token %}
-            
-            <div class="mb-4">
-                <label for="archivo_pdf_firmado" class="block text-sm font-medium text-gray-700 mb-2">
-                    Seleccionar PDF Firmado <span class="text-red-500">*</span>
-                </label>
-                <input type="file" 
-                       name="archivo_pdf_firmado" 
-                       id="archivo_pdf_firmado" 
-                       accept=".pdf,application/pdf"
-                       required
-                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                <p class="mt-2 text-sm text-gray-500">
-                    Solo archivos PDF. Tamaño máximo: 10MB
-                </p>
-            </div>
-            
             <div class="flex gap-4">
-                <button type="submit" class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                <button type="button"
+                        onclick="showConfirmModal('Esta acción firmará el documento con el certificado institucional. ¿Desea continuar?', document.getElementById('form-firmar-tramite'), { variant: 'danger' })"
+                        class="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 flex items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
-                    Subir PDF Firmado
+                    Firmar con Certificado Digital
                 </button>
                 <a href="{% url 'tramites:detalle' id=tramite.uuid %}" class="bg-gray-300 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-400">
                     Cancelar

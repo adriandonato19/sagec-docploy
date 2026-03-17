@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Editar Documento - {{ tramite.numero_referencia|default:tramite.uuid }} - SAGEC{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-2xl font-bold text-gray-800">Editar Documento</h1>
+        <a href="{% url 'tramites:detalle' id=tramite.uuid %}" class="text-blue-600 hover:underline text-sm">&larr; Volver al detalle</a>
+    </div>
+
+    <form method="post" id="form-editar-pdf">
+        {% csrf_token %}
+        <input type="hidden" name="contenido_editado" id="contenido-hidden">
+
+        <!-- Toolbar -->
+        <div class="bg-white border border-gray-300 rounded-t-lg px-4 py-2 flex items-center gap-2 flex-wrap">
+            <button type="button" id="btn-bold" title="Negrita"
+                    class="px-3 py-1.5 rounded hover:bg-gray-100 font-bold text-gray-700 border border-gray-200">B</button>
+            <button type="button" id="btn-italic" title="Cursiva"
+                    class="px-3 py-1.5 rounded hover:bg-gray-100 italic text-gray-700 border border-gray-200">I</button>
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+            <button type="button" id="btn-undo" title="Deshacer"
+                    class="px-3 py-1.5 rounded hover:bg-gray-100 text-gray-700 border border-gray-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/></svg>
+            </button>
+            <button type="button" id="btn-redo" title="Rehacer"
+                    class="px-3 py-1.5 rounded hover:bg-gray-100 text-gray-700 border border-gray-200">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10H11a5 5 0 00-5 5v2M21 10l-4-4M21 10l-4 4"/></svg>
+            </button>
+            <div class="ml-auto text-xs text-gray-400">El documento se paginar&aacute; autom&aacute;ticamente al generar el PDF.</div>
+        </div>
+
+        <!-- Documento simulado -->
+        <div class="bg-gray-100 border-x border-b border-gray-300 rounded-b-lg p-8 overflow-y-auto" style="max-height: calc(100vh - 320px);">
+            <div class="bg-white mx-auto shadow-lg" style="width: 21.59cm; min-height: 27.94cm; padding: 1.8cm 1.8cm 2.8cm 3.2cm; box-sizing: border-box;">
+
+                <!-- Logo institucional (NO editable) -->
+                <div style="margin-bottom: 0.5cm;">
+                    <img src="{% static 'img/logo_oficial.png' %}" alt="Logo Gobierno Nacional" style="height: 2.5cm; width: auto;">
+                </div>
+
+                <!-- Contenido editable -->
+                <div id="editor" contenteditable="true"
+                     style="font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.4; color: #000; padding-left: 1.8cm; outline: none; min-height: 18cm; border: 1px dashed #cbd5e1; border-radius: 4px; padding-top: 0.3cm; padding-bottom: 0.3cm; padding-right: 0.3cm;">
+                    {{ contenido_editable|safe }}
+                </div>
+
+                <!-- Footer institucional (NO editable) -->
+                <div style="margin-top: 1cm;">
+                    <img src="{% static 'img/footer_certificado.png' %}" alt="Footer Institucional" style="width: 100%; display: block;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Botones de accion -->
+        <div class="flex gap-4 mt-6">
+            <button type="submit"
+                    class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Guardar y Regenerar PDF
+            </button>
+            <a href="{% url 'tramites:detalle' id=tramite.uuid %}"
+               class="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400">
+                Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+
+<style>
+    /* Estilos que replican el PDF dentro del editor */
+    #editor .document-header { margin-bottom: 0.6cm; }
+    #editor .fecha-doc { margin-bottom: 0.2cm; }
+    #editor .referencia { font-weight: bold; }
+    #editor .destinatario { margin-bottom: 0.6cm; line-height: 1.3; }
+    #editor .destinatario-nombre { font-weight: bold; text-transform: uppercase; }
+    #editor .destinatario-institucion { font-weight: bold; }
+    #editor .destinatario-esd { margin-top: 0.2cm; letter-spacing: 0.3em; }
+    #editor .saludo { margin-bottom: 0.4cm; }
+    #editor .cuerpo { text-align: justify; line-height: 1.4; }
+    #editor .parrafo { margin-bottom: 0.4cm; }
+    #editor .empresa-bloque { break-inside: avoid; }
+    #editor .empresas-lista { margin-top: 0.3cm; margin-bottom: 0.3cm; }
+    #editor .empresas-lista ul { list-style-type: disc; padding-left: 1.2cm; margin: 0; }
+    #editor .empresas-lista li { margin-bottom: 0.3cm; }
+    #editor .empresa-nombre-header { font-weight: bold; text-transform: uppercase; margin-bottom: 0.1cm; }
+    #editor .firma-bloque { break-inside: avoid; }
+    #editor .atentamente { margin-top: 0.6cm; margin-bottom: 0.2cm; }
+    #editor .firma-espacio { height: 2.2cm; }
+    #editor .firma-info { line-height: 1.1; }
+    #editor .firma-nombre { font-weight: bold; font-size: 10.5pt; }
+    #editor .firma-cargo { font-size: 9.5pt; }
+    #editor .firma-iniciales { margin-top: 0.4cm; font-size: 8pt; color: #666; }
+</style>
+
+<script>
+(function() {
+    const editor = document.getElementById('editor');
+    const hidden = document.getElementById('contenido-hidden');
+    const form = document.getElementById('form-editar-pdf');
+
+    // Configurar separador de parrafos
+    document.execCommand('defaultParagraphSeparator', false, 'p');
+
+    // Submit: copiar innerHTML al hidden input
+    form.addEventListener('submit', function() {
+        hidden.value = editor.innerHTML;
+    });
+
+    // Toolbar
+    document.getElementById('btn-bold').addEventListener('click', function() {
+        document.execCommand('bold');
+        editor.focus();
+    });
+    document.getElementById('btn-italic').addEventListener('click', function() {
+        document.execCommand('italic');
+        editor.focus();
+    });
+    document.getElementById('btn-undo').addEventListener('click', function() {
+        document.execCommand('undo');
+        editor.focus();
+    });
+    document.getElementById('btn-redo').addEventListener('click', function() {
+        document.execCommand('redo');
+        editor.focus();
+    });
+
+    // Paste: solo texto plano
+    editor.addEventListener('paste', function(e) {
+        e.preventDefault();
+        var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        document.execCommand('insertText', false, text);
+    });
+})();
+</script>
+{% endblock %}

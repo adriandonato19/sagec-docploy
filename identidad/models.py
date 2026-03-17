@@ -1,6 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+
 class UsuarioMICI(AbstractUser):
     # Definición de Roles como constantes para evitar errores de dedo
     FISCAL = 'FISCAL'      # Organismos gubernamentales externos
@@ -20,6 +21,10 @@ class UsuarioMICI(AbstractUser):
     )
     cedula = models.CharField(max_length=20, unique=True, help_text="Cédula de identidad personal")
     institucion = models.CharField(max_length=100, blank=True, help_text="Entidad a la que pertenece (ej. Ministerio Público)")
+    debe_cambiar_password = models.BooleanField(
+        default=False,
+        help_text="Obliga al usuario a cambiar su contraseña en el siguiente inicio de sesión.",
+    )
 
     class Meta:
         verbose_name = "Usuario MICI"

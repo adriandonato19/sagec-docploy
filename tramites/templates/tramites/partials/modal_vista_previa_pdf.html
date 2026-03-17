@@ -3,7 +3,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between p-6 border-b border-gray-200 bg-blue-900 text-white rounded-t-xl">
             <h3 class="text-xl font-bold">Vista Previa del Documento</h3>
-            <button onclick="document.getElementById('modal-pdf-container').remove()" class="text-white hover:text-yellow-400 transition-colors">
+            <button onclick="document.getElementById('modal-slot').innerHTML = ''" class="text-white hover:text-yellow-400 transition-colors">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
@@ -11,10 +11,10 @@
         </div>
 
         <!-- PDF Content -->
-        <div class="flex-1 overflow-hidden">
-            <iframe 
-                src="{% url 'tramites:descargar' id=tramite.uuid %}?inline=1" 
-                class="w-full h-full border-0"
+        <div>
+            <iframe
+                src="{% url 'tramites:descargar' id=tramite.uuid %}?inline=1"
+                style="width: 100%; height: 75vh; border: none;"
                 title="Vista previa del PDF">
             </iframe>
         </div>
@@ -25,7 +25,7 @@
                 <span class="font-semibold">Referencia:</span> {{ tramite.numero_referencia|default:tramite.uuid }}
             </div>
             <div class="flex gap-3">
-                <button onclick="document.getElementById('modal-pdf-container').remove()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors">
+                <button onclick="document.getElementById('modal-slot').innerHTML = ''" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors">
                     Cerrar
                 </button>
                 <a href="{% url 'tramites:descargar' id=tramite.uuid %}" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">

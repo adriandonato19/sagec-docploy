@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documento firmado - SAGEC</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;padding:30px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:6px;overflow:hidden;box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+
+          <!-- Cabecera -->
+          <tr>
+            <td style="background-color:#00539b;padding:24px 32px;">
+              <p style="margin:0;color:#ffffff;font-size:13px;letter-spacing:0.5px;">MINISTERIO DE COMERCIO E INDUSTRIAS</p>
+              <p style="margin:4px 0 0;color:#ffffff;font-size:20px;font-weight:bold;">Sistema SAGEC</p>
+            </td>
+          </tr>
+
+          <!-- Cuerpo -->
+          <tr>
+            <td style="padding:32px;">
+              <p style="margin:0 0 16px;font-size:15px;color:#333;">
+                Estimado/a <strong>{{ solicitante.get_full_name|default:solicitante.username }}</strong>,
+              </p>
+              <p style="margin:0 0 24px;font-size:15px;color:#333;line-height:1.5;">
+                Su <strong>{{ tipo }}</strong> ha sido <strong>firmado digitalmente</strong> y se encuentra adjunto a este correo.
+              </p>
+
+              <!-- Detalle del documento -->
+              <table width="100%" cellpadding="10" cellspacing="0" style="background-color:#f0f6ff;border-radius:4px;margin-bottom:24px;">
+                <tr>
+                  <td style="font-size:13px;color:#555;width:45%;">Número de referencia</td>
+                  <td style="font-size:13px;color:#111;font-weight:bold;">{{ tramite.numero_referencia }}</td>
+                </tr>
+                <tr>
+                  <td style="font-size:13px;color:#555;border-top:1px solid #dce8f7;">Tipo de documento</td>
+                  <td style="font-size:13px;color:#111;border-top:1px solid #dce8f7;">{{ tipo }}</td>
+                </tr>
+                <tr>
+                  <td style="font-size:13px;color:#555;border-top:1px solid #dce8f7;">Firmado por</td>
+                  <td style="font-size:13px;color:#111;border-top:1px solid #dce8f7;">{{ firmante.get_full_name|default:firmante.username }}</td>
+                </tr>
+              </table>
+
+              <p style="margin:0;font-size:13px;color:#666;line-height:1.5;">
+                El documento PDF firmado se encuentra adjunto a este correo. Puede abrirlo con cualquier lector de PDF para verificar la firma digital.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Pie -->
+          <tr>
+            <td style="background-color:#f8f8f8;padding:16px 32px;border-top:1px solid #e8e8e8;">
+              <p style="margin:0;font-size:11px;color:#999;line-height:1.5;">
+                Este es un correo automático del Sistema SAGEC — Ministerio de Comercio e Industrias de Panamá.<br>
+                Por favor no responda a este correo.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

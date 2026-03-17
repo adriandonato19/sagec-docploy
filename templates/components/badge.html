@@ -7,6 +7,8 @@ Uso: {% include 'components/badge.html' with estado=tramite.estado %}
     <span class="px-3 py-1 text-xs font-semibold rounded-full bg-gray-200 text-gray-800">Borrador</span>
 {% elif estado == 'PENDIENTE' %}
     <span class="px-3 py-1 text-xs font-semibold rounded-full bg-orange-200 text-orange-800">Pendiente</span>
+{% elif estado == 'EN_REVISION' %}
+    <span class="px-3 py-1 text-xs font-semibold rounded-full bg-yellow-200 text-yellow-800">En revisión</span>
 {% elif estado == 'APROBADO' %}
     <span class="px-3 py-1 text-xs font-semibold rounded-full bg-blue-200 text-blue-800">Aprobado</span>
 {% elif estado == 'FIRMADO' %}
@@ -20,4 +22,3 @@ Uso: {% include 'components/badge.html' with estado=tramite.estado %}
 {% else %}
     <span class="px-3 py-1 text-xs font-semibold rounded-full bg-gray-300 text-gray-700">{{ estado }}</span>
 {% endif %}
-

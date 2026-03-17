@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.exceptions import ValidationError
 from django.utils import timezone
+from pathlib import Path
 import uuid
 import json
 
@@ -8,14 +9,16 @@ class Tramite(models.Model):
     # Definición de Estados
     BORRADOR = 'BORRADOR'       # El usuario consultó pero no ha enviado a aprobar
     PENDIENTE = 'PENDIENTE'     # Enviado para revisión del Trabajador/Director
-    APROBADO = 'APROBADO'       # Validado por un Trabajador, listo para firma del Director
+    EN_REVISION = 'EN_REVISION'  # Solicitud aprobada, documento en revisión final
+    APROBADO = 'APROBADO'       # Documento aprobado, pendiente de firma del Director
     FIRMADO = 'FIRMADO'         # El Director ya subió el documento con firma digital
     RECHAZADO = 'RECHAZADO'     # La solicitud fue denegada por datos incorrectos
 
     ESTADOS_CHOICES = [
         (BORRADOR, 'Borrador'),
         (PENDIENTE, 'Pendiente de Revisión'),
-        (APROBADO, 'Aprobado para Firma'),
+        (EN_REVISION, 'En revisión'),
+        (APROBADO, 'Aprobado'),
         (FIRMADO, 'Firmado y Finalizado'),
         (RECHAZADO, 'Rechazado'),
     ]
@@ -41,6 +44,7 @@ class Tramite(models.Model):
     archivo_pdf = models.FileField(upload_to='pdfs/', null=True, blank=True, help_text="PDF original generado al crear el trámite")
     archivo_pdf_firmado = models.FileField(upload_to='pdfs/firmados/', null=True, blank=True, help_text="PDF firmado externamente y subido por el director")
     motivo_rechazo = models.TextField(blank=True, help_text="Motivo del rechazo si aplica")
+    html_pdf_editado = models.TextField(blank=True, default='', help_text="HTML editado del PDF (si fue modificado)")
     
     # Campos adicionales del trámite
     destinatario = models.CharField(max_length=200, blank=True, help_text="Nombre del destinatario del documento (ej: Señor LUIS ABREGO)")
@@ -93,7 +97,7 @@ class Tramite(models.Model):
         return lista[0] if lista else {}
 
     def aprobar(self, revisor):
-        """Transición: PENDIENTE -> APROBADO"""
+        """Transición: PENDIENTE -> EN_REVISION"""
         if self.estado != self.PENDIENTE:
             raise ValidationError(f"No se puede aprobar un trámite en estado {self.get_estado_display()}")
         if not revisor.puede_aprobar:
@@ -102,10 +106,46 @@ class Tramite(models.Model):
         preguntas_sin_responder = self.preguntas.filter(texto_respuesta='')
         if preguntas_sin_responder.exists():
             raise ValidationError("Todas las preguntas deben ser respondidas antes de aprobar.")
-        self.estado = self.APROBADO
+        self.estado = self.EN_REVISION
         self.revisor = revisor
         self.fecha_revision = timezone.now()
         self.save()
+
+    def aprobar_pdf(self, revisor):
+        """Transición: EN_REVISION -> APROBADO"""
+        if self.estado != self.EN_REVISION:
+            raise ValidationError(f"No se puede aprobar el PDF en estado {self.get_estado_display()}")
+        if not revisor.puede_aprobar:
+            raise ValidationError("El usuario no tiene permisos para aprobar el PDF")
+        self.estado = self.APROBADO
+        self.save(update_fields=['estado'])
+
+    def limpiar_borrador_pdf(self):
+        """Elimina el PDF temporal y limpia el HTML editado asociado."""
+        if self.archivo_pdf and self.archivo_pdf.name:
+            pdf_path = Path(__file__).parent / self.archivo_pdf.name
+            if pdf_path.exists():
+                pdf_path.unlink()
+        self.archivo_pdf = None
+        self.html_pdf_editado = ''
+
+    def regresar(self, revisor):
+        """Retrocede el trámite un paso en el flujo de revisión."""
+        if not revisor.puede_aprobar:
+            raise ValidationError("El usuario no tiene permisos para regresar el trámite")
+
+        if self.estado == self.APROBADO:
+            self.estado = self.EN_REVISION
+            self.save(update_fields=['estado'])
+            return
+
+        if self.estado == self.EN_REVISION:
+            self.limpiar_borrador_pdf()
+            self.estado = self.PENDIENTE
+            self.save(update_fields=['estado', 'archivo_pdf', 'html_pdf_editado'])
+            return
+
+        raise ValidationError(f"No se puede regresar un trámite en estado {self.get_estado_display()}")
     
     def rechazar(self, revisor, motivo):
         """Transición: PENDIENTE -> RECHAZADO"""
@@ -113,9 +153,11 @@ class Tramite(models.Model):
             raise ValidationError(f"No se puede rechazar un trámite en estado {self.get_estado_display()}")
         if not revisor.puede_aprobar:
             raise ValidationError("El usuario no tiene permisos para rechazar")
+        if not motivo.strip():
+            raise ValidationError("Debe indicar el motivo del rechazo")
         self.estado = self.RECHAZADO
         self.revisor = revisor
-        self.motivo_rechazo = motivo
+        self.motivo_rechazo = motivo.strip()
         self.fecha_revision = timezone.now()
         self.save()
     

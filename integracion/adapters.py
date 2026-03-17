@@ -3,7 +3,14 @@ Adaptadores para normalizar datos de la API externa (Actualizado para el nuevo J
 
 $Reusable$
 """
-from typing import Dict, List, Optional
+from typing import Dict, List
+
+
+def _construir_ruc_completo(ruc: str, dv: str) -> str:
+    """Construye el valor final del RUC mostrado en la app."""
+    if dv and dv not in ruc:
+        return f"{ruc}-{dv}"
+    return ruc
 
 
 def normalizar_datos_empresa(datos_api: Dict) -> Dict:
@@ -19,18 +26,15 @@ def normalizar_datos_empresa(datos_api: Dict) -> Dict:
     $Reusable$
     """
     # Manejar el RUC que ya puede venir con guiones o separado del DV
-    ruc_raw = str(datos_api.get('ruc', ''))
-    dv = str(datos_api.get('dv', ''))
-    
-    if dv and dv not in ruc_raw:
-        ruc_completo = f"{ruc_raw}-{dv}"
-    else:
-        ruc_completo = ruc_raw
+    ruc_raw = str(datos_api.get('ruc', '') or '').strip()
+    dv = str(datos_api.get('dv', '') or '').strip()
+    ruc_completo = _construir_ruc_completo(ruc_raw, dv)
 
     return {
         'ruc': ruc_raw,
         'dv': dv,
         'ruc_completo': ruc_completo,
+        'tipo': datos_api.get('tipo', ''),
         'razon_social': datos_api.get('razon_social', ''),
         'razon_comercial': datos_api.get('razon_comercial', ''),
         'numero_aviso': datos_api.get('aviso_operacion', ''),
@@ -104,12 +108,16 @@ def normalizar_lista_avisos(avisos_api: List[Dict]) -> List[Dict]:
         {
             'numero_aviso': aviso.get('aviso_operacion', ''),
             'ruc': aviso.get('ruc', ''),
+            'tipo': aviso.get('tipo', ''),
             'razon_comercial': aviso.get('razon_comercial', ''),
             'razon_social': aviso.get('razon_social', ''),
             'representante_legal': aviso.get('representante_legal', ''),
             'cedula_representante': aviso.get('cedula_representante',''),
             'estatus': aviso.get('estado_sucursal', ''),
-            'ruc_completo': f"{aviso.get('ruc', '')}-{aviso.get('dv', '')}" if aviso.get('dv') else aviso.get('ruc', ''),
+            'ruc_completo': _construir_ruc_completo(
+                str(aviso.get('ruc', '') or '').strip(),
+                str(aviso.get('dv', '') or '').strip(),
+            ),
         }
         for aviso in avisos_api
     ]

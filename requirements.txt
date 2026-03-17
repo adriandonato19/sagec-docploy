@@ -3,11 +3,15 @@ Django>=5.0,<5.1
 django-environ
 psycopg2-binary
 requests
+gunicorn
+whitenoise
+python-dotenv
 
 # PDF Generation & Signing
 WeasyPrint
 pypdf  # Para fusionar PDFs (oficio + aviso de operación)
 pyhanko[crypto]
+pdfplumber
 pillow # Para procesar imágenes en la generación de PDFs.
 qrcode # Para generar códigos QR.
 
@@ -21,3 +25,5 @@ django-csp # Para gestionar Content Security Policy (evitar XSS).
 django-encrypted-model-fields # Para cifrar datos sensibles en la BD (ej. tokens de API).
 django-two-factor-auth # Para implementar el 2FA obligatorio de Fiscales y Firmantes.
 django-otp # Para implementar el 2FA obligatorio de Fiscales y Firmantes.
+
+bs4

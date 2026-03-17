@@ -47,8 +47,8 @@ python manage.py createsuperuser    # Create admin user
 ## URL Structure
 
 ```
-/login/, /registro/, /logout/       # Auth (public)
-/configuracion/                     # User profile
+/login/, /logout/                   # Auth
+/configuracion/                     # User profile + forced password change
 /usuarios/                          # User management (Director only)
 /consultar/                         # Main search interface
 /hx/buscar-empresa/                 # HTMX reactive search endpoint
@@ -65,3 +65,4 @@ python manage.py createsuperuser    # Create admin user
 - Session timeout: 15 minutes
 - AXES: 5 failed login attempts = 1 hour lockout (disabled in dev)
 - All UI text in Spanish
+- El usuario `DIRECTOR` se crea solo con `python manage.py crear_director`
