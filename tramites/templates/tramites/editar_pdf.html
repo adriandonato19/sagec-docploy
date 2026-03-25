@@ -18,24 +18,33 @@
         <!-- Toolbar -->
         <div class="bg-white border border-gray-300 rounded-t-lg px-4 py-2 flex items-center gap-2 flex-wrap">
             <button type="button" id="btn-bold" title="Negrita"
-                    class="px-3 py-1.5 rounded hover:bg-gray-100 font-bold text-gray-700 border border-gray-200">B</button>
+                    class="toolbar-btn px-3 py-1.5 rounded font-bold text-gray-700 border border-gray-200 hover:bg-gray-100">B</button>
             <button type="button" id="btn-italic" title="Cursiva"
-                    class="px-3 py-1.5 rounded hover:bg-gray-100 italic text-gray-700 border border-gray-200">I</button>
+                    class="toolbar-btn px-3 py-1.5 rounded italic text-gray-700 border border-gray-200 hover:bg-gray-100">I</button>
+            <div class="w-px h-6 bg-gray-300 mx-1"></div>
+            <button type="button" id="btn-justify" title="Justificar texto"
+                    class="toolbar-btn px-3 py-1.5 rounded text-gray-700 border border-gray-200 hover:bg-gray-100">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M3 5h18v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/>
+                </svg>
+            </button>
             <div class="w-px h-6 bg-gray-300 mx-1"></div>
             <button type="button" id="btn-undo" title="Deshacer"
-                    class="px-3 py-1.5 rounded hover:bg-gray-100 text-gray-700 border border-gray-200">
+                    class="toolbar-btn px-3 py-1.5 rounded text-gray-700 border border-gray-200 hover:bg-gray-100">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/></svg>
             </button>
             <button type="button" id="btn-redo" title="Rehacer"
-                    class="px-3 py-1.5 rounded hover:bg-gray-100 text-gray-700 border border-gray-200">
+                    class="toolbar-btn px-3 py-1.5 rounded text-gray-700 border border-gray-200 hover:bg-gray-100">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10H11a5 5 0 00-5 5v2M21 10l-4-4M21 10l-4 4"/></svg>
             </button>
-            <div class="ml-auto text-xs text-gray-400">El documento se paginar&aacute; autom&aacute;ticamente al generar el PDF.</div>
+            <div class="ml-auto text-xs text-gray-400">Las l&iacute;neas azules indican saltos de p&aacute;gina.</div>
         </div>
 
         <!-- Documento simulado -->
         <div class="bg-gray-100 border-x border-b border-gray-300 rounded-b-lg p-8 overflow-y-auto" style="max-height: calc(100vh - 320px);">
-            <div class="bg-white mx-auto shadow-lg" style="width: 21.59cm; min-height: 27.94cm; padding: 1.8cm 1.8cm 2.8cm 3.2cm; box-sizing: border-box;">
+            <div id="page-wrapper" class="bg-white mx-auto shadow-lg" style="width: 21.59cm; min-height: 27.94cm; padding: 1.8cm 1.8cm 2.8cm 3.2cm; box-sizing: border-box; position: relative;">
+
+                <!-- Líneas de salto de página (insertadas por JS) -->
 
                 <!-- Logo institucional (NO editable) -->
                 <div style="margin-bottom: 0.5cm;">
@@ -44,7 +53,7 @@
 
                 <!-- Contenido editable -->
                 <div id="editor" contenteditable="true"
-                     style="font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.4; color: #000; padding-left: 1.8cm; outline: none; min-height: 18cm; border: 1px dashed #cbd5e1; border-radius: 4px; padding-top: 0.3cm; padding-bottom: 0.3cm; padding-right: 0.3cm;">
+                     style="font-family: Arial, sans-serif; font-size: 10pt; line-height: 1.4; color: #000; padding-left: 0.5cm; outline: none; min-height: 18cm; border: 1px dashed #cbd5e1; border-radius: 4px; padding-top: 0.3cm; padding-bottom: 0.3cm; padding-right: 0.3cm;">
                     {{ contenido_editable|safe }}
                 </div>
 
@@ -73,6 +82,35 @@
 </div>
 
 <style>
+    /* Botón activo del toolbar */
+    .toolbar-btn.active {
+        background-color: #dbeafe;
+        color: #1d4ed8;
+        border-color: #93c5fd;
+    }
+
+    /* Línea de salto de página */
+    .page-break-line {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 0;
+        border-top: 2px dashed #3b82f6;
+        pointer-events: none;
+        z-index: 10;
+    }
+    .page-break-line::before {
+        content: 'Página';
+        position: absolute;
+        right: 8px;
+        top: -10px;
+        font-size: 9px;
+        color: #3b82f6;
+        background: white;
+        padding: 0 4px;
+        font-family: Arial, sans-serif;
+    }
+
     /* Estilos que replican el PDF dentro del editor */
     #editor .document-header { margin-bottom: 0.6cm; }
     #editor .fecha-doc { margin-bottom: 0.2cm; }
@@ -103,6 +141,17 @@
     const editor = document.getElementById('editor');
     const hidden = document.getElementById('contenido-hidden');
     const form = document.getElementById('form-editar-pdf');
+    const pageWrapper = document.getElementById('page-wrapper');
+
+    // Página letter: 27.94cm alto, márgenes top 1.8cm + bottom 2.8cm = 4.6cm
+    // Contenido útil ≈ 23.34cm. En px a 96dpi (1cm = 37.795px): 23.34 * 37.795 ≈ 882px
+    // Restamos el logo (~2.5cm = 94px) y footer (~1cm = 38px) + gap = ~750px de contenido editable
+    // Usamos la altura real de página en px para calcular saltos
+    const CM_TO_PX = 37.795;
+    const PAGE_HEIGHT_CM = 27.94;
+    const MARGIN_TOP_CM = 1.8;
+    const MARGIN_BOTTOM_CM = 2.8;
+    const PAGE_CONTENT_HEIGHT_PX = (PAGE_HEIGHT_CM - MARGIN_TOP_CM - MARGIN_BOTTOM_CM) * CM_TO_PX;
 
     // Configurar separador de parrafos
     document.execCommand('defaultParagraphSeparator', false, 'p');
@@ -112,25 +161,94 @@
         hidden.value = editor.innerHTML;
     });
 
-    // Toolbar
+    // --- Toolbar ---
     document.getElementById('btn-bold').addEventListener('click', function() {
         document.execCommand('bold');
         editor.focus();
+        actualizarEstadoBotones();
     });
     document.getElementById('btn-italic').addEventListener('click', function() {
         document.execCommand('italic');
         editor.focus();
+        actualizarEstadoBotones();
+    });
+    document.getElementById('btn-justify').addEventListener('click', function() {
+        if (document.queryCommandState('justifyFull')) {
+            document.execCommand('justifyLeft');
+        } else {
+            document.execCommand('justifyFull');
+        }
+        editor.focus();
+        actualizarEstadoBotones();
     });
     document.getElementById('btn-undo').addEventListener('click', function() {
         document.execCommand('undo');
         editor.focus();
+        actualizarEstadoBotones();
     });
     document.getElementById('btn-redo').addEventListener('click', function() {
         document.execCommand('redo');
         editor.focus();
+        actualizarEstadoBotones();
     });
 
-    // Paste: solo texto plano
+    // --- Estado activo de botones (azul) ---
+    function actualizarEstadoBotones() {
+        document.getElementById('btn-bold').classList.toggle('active', document.queryCommandState('bold'));
+        document.getElementById('btn-italic').classList.toggle('active', document.queryCommandState('italic'));
+        document.getElementById('btn-justify').classList.toggle('active', document.queryCommandState('justifyFull'));
+    }
+
+    document.addEventListener('selectionchange', function() {
+        // Solo actualizar si la selección está dentro del editor
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && editor.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+            actualizarEstadoBotones();
+        }
+    });
+
+    // --- Visualización de saltos de página ---
+    function actualizarSaltoPagina() {
+        // Eliminar líneas anteriores
+        pageWrapper.querySelectorAll('.page-break-line').forEach(el => el.remove());
+
+        const wrapperRect = pageWrapper.getBoundingClientRect();
+        const editorRect = editor.getBoundingClientRect();
+
+        // Offset del editor dentro del wrapper (en px)
+        const editorOffsetTop = editorRect.top - wrapperRect.top;
+
+        // Altura total del wrapper
+        const wrapperHeight = pageWrapper.scrollHeight;
+
+        // Primera línea: al llegar al final de la primera página
+        // Las páginas siguientes se calculan a partir del inicio del wrapper
+        let pageNum = 1;
+        let lineTop = PAGE_CONTENT_HEIGHT_PX;
+
+        while (lineTop < wrapperHeight) {
+            const line = document.createElement('div');
+            line.className = 'page-break-line';
+            line.style.top = lineTop + 'px';
+            line.setAttribute('data-page', pageNum);
+            // Actualizar el texto del pseudo-elemento via dataset
+            line.style.setProperty('--page-num', '"Pág. ' + (pageNum + 1) + '"');
+            pageWrapper.appendChild(line);
+            lineTop += PAGE_CONTENT_HEIGHT_PX;
+            pageNum++;
+        }
+    }
+
+    // Actualizar al cargar y al editar
+    actualizarSaltoPagina();
+    editor.addEventListener('input', actualizarSaltoPagina);
+
+    // También actualizar al cargar imágenes (el logo puede cambiar la altura)
+    pageWrapper.querySelectorAll('img').forEach(img => {
+        img.addEventListener('load', actualizarSaltoPagina);
+    });
+
+    // --- Paste: solo texto plano ---
     editor.addEventListener('paste', function(e) {
         e.preventDefault();
         var text = (e.clipboardData || window.clipboardData).getData('text/plain');

@@ -33,7 +33,8 @@ class Tramite(models.Model):
     empresa_snapshot = models.JSONField(default=list, help_text="Snapshot de datos de la empresa al momento de creación")
     numero_carpetilla = models.CharField(max_length=100, blank=True, help_text="Número de carpetilla (solo para oficios)")
     origen_consulta = models.CharField(max_length=100, blank=True, help_text="RUC o número de aviso consultado")
-    
+    noconsta_snapshot = models.JSONField(default=list, help_text="Lista de entradas de 'No Consta' escritas manualmente por el fiscal")
+
     # Trazabilidad (Módulo 3 y 4 de la propuesta)
     solicitante = models.ForeignKey('identidad.UsuarioMICI', on_delete=models.PROTECT, related_name='solicitudes') 
     revisor = models.ForeignKey('identidad.UsuarioMICI', on_delete=models.SET_NULL, null=True, blank=True, related_name='revisiones') 

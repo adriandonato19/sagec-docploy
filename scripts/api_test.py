@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(PROJECT_ROOT / '.env')
 
-API_URL = 'https://api.panamaemprende.gob.pa/api/consulta/multiple/{busqueda}'
+API_URL = 'https://api.panamaemprende.gob.pa/api/consulta/multiple/{busqueda}?page=3'
 X_USER = os.environ.get('X-USER', '')
 X_PASSWORD = os.environ.get('X-PASSWORD', '')
 

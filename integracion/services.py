@@ -4,7 +4,7 @@ Servicio de integración con API de Panamá Emprende.
 $Reusable$
 """
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from .api_client import consultar_empresa as api_consultar
 from .adapters import normalizar_datos_empresa, construir_ubicacion_completa, normalizar_lista_avisos
@@ -44,3 +44,29 @@ def buscar_empresa(query: str, page: int = 1) -> Optional[Dict]:
         'resultados_raw': resultados,
         'paginacion': respuesta['paginacion'],
     }
+
+
+MAX_PAGINAS_CARRITO = 10
+
+
+def buscar_empresa_todas_paginas(query: str) -> Optional[List[Dict]]:
+    """
+    Busca empresa y retorna todos los resultados raw de todas las páginas.
+
+    Usado para agregar al carrito donde se necesitan todos los avisos.
+    Límite de seguridad: máximo MAX_PAGINAS_CARRITO páginas.
+    """
+    primera = api_consultar(query, page=1)
+    if not primera:
+        return None
+
+    todos = list(primera['resultados'])
+    last_page = primera['paginacion']['last_page']
+
+    for page in range(2, min(last_page + 1, MAX_PAGINAS_CARRITO + 1)):
+        respuesta = api_consultar(query, page=page)
+        if not respuesta:
+            break
+        todos.extend(respuesta['resultados'])
+
+    return todos

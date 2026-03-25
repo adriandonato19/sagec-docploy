@@ -1,0 +1,23 @@
+<div id="noconsta-cart">
+    {% if noconsta_cart %}
+    <div class="space-y-2">
+        {% for entrada in noconsta_cart %}
+        <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+            <p class="text-sm text-gray-800">{{ entrada }}</p>
+            <button hx-delete="{% url 'tramites:remover_noconsta_hx' index=forloop.counter0 %}"
+                    hx-target="#noconsta-cart"
+                    hx-swap="outerHTML"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                    class="text-red-500 hover:text-red-700 text-sm font-medium ml-3 flex-shrink-0">
+                Remover
+            </button>
+        </div>
+        {% endfor %}
+    </div>
+    <p class="text-xs text-gray-500 mt-2">
+        {{ noconsta_cart|length }} entrada{{ noconsta_cart|length|pluralize:"s" }} de No Consta
+    </p>
+    {% else %}
+    <p class="text-sm text-gray-400 italic">No se han agregado entradas de No Consta.</p>
+    {% endif %}
+</div>

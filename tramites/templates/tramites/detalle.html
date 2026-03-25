@@ -94,6 +94,20 @@
             {% endif %}
         </div>
 
+        <!-- Entradas de No Consta -->
+        {% if tramite.noconsta_snapshot %}
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Entradas de No Consta</h2>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <ul class="list-disc list-inside space-y-1">
+                    {% for entrada in tramite.noconsta_snapshot %}
+                    <li class="text-sm text-gray-800">{{ entrada }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Preguntas -->
         {% include 'tramites/partials/preguntas_detalle.html' %}
 

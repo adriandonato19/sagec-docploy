@@ -16,7 +16,7 @@ from .services.firma_digital import certificado_disponible, firmar_pdf_con_certi
 from .services.notificaciones import enviar_notificacion_firma
 from identidad.decorators import require_rol
 from identidad.models import UsuarioMICI
-from integracion.services import buscar_empresa
+from integracion.services import buscar_empresa, buscar_empresa_todas_paginas
 from integracion.adapters import normalizar_datos_empresa, construir_ubicacion_completa
 from auditoria.services import registrar_evento, obtener_ip_cliente
 from auditoria.models import BitacoraEvento, ConsultaSecuencia
@@ -106,8 +106,9 @@ def crear_tramite_view(request):
         cargo_destinatario = request.POST.get('cargo_destinatario', '').strip()
         institucion_destinatario = request.POST.get('institucion_destinatario', '').strip()
 
-        # Empresas del carrito en sesión
+        # Empresas y entradas No Consta del carrito en sesión
         empresas_cart = request.session.get('empresas_cart', [])
+        noconsta_cart = request.session.get('noconsta_cart', [])
 
         # Oficios requieren carpetilla y oficio externo
         if tipo_documento == 'OFICIO':
@@ -122,7 +123,7 @@ def crear_tramite_view(request):
         preguntas_textos = [t.strip() for t in request.POST.getlist('preguntas[]') if t.strip()]
 
         empresa_snapshot = empresas_cart  # siempre lista
-        origen_consulta = ', '.join(e.get('ruc_completo', e.get('ruc', '')) for e in empresas_cart) if empresas_cart else ''
+        origen_consulta = ', '.join(e.get('ruc_completo', e.get('ruc', '')) for e in empresas_cart)
 
         # Parsear fecha de solicitud
         fecha_solicitud = None
@@ -138,6 +139,7 @@ def crear_tramite_view(request):
             tipo_documento=tipo_documento,
             solicitante=request.user,
             empresa_snapshot=empresa_snapshot,
+            noconsta_snapshot=noconsta_cart,
             origen_consulta=origen_consulta,
             numero_referencia=f"{tipo_documento[:3]}-{timezone.now().strftime('%Y%m%d')}-{Tramite.objects.count() + 1}",
             estado=Tramite.BORRADOR,
@@ -167,6 +169,8 @@ def crear_tramite_view(request):
 
         # Limpiar carrito de sesión
         request.session.pop('empresas_cart', None)
+        request.session.pop('noconsta_cart', None)
+        request.session.pop('consulta_no_consta', None)
 
         # Registrar evento de creación
         ip_cliente = obtener_ip_cliente(request)
@@ -184,6 +188,7 @@ def crear_tramite_view(request):
 
     # GET: limpiar carrito y consultas secuenciales, mostrar selector de tipo
     request.session.pop('empresas_cart', None)
+    request.session.pop('noconsta_cart', None)
     request.session.pop('consultas_secuencia_ids', None)
     return render(request, 'tramites/consultar.html')
 
@@ -198,11 +203,13 @@ def formulario_tipo_hx(request):
 
     tipo_labels = {'CERTIFICADO': 'Certificado', 'OFICIO': 'Oficio'}
     empresas_cart = request.session.get('empresas_cart', [])
+    noconsta_cart = request.session.get('noconsta_cart', [])
 
     return render(request, 'tramites/partials/formulario_tipo.html', {
         'tipo_documento': tipo_documento,
         'tipo_label': tipo_labels[tipo_documento],
         'empresas_cart': empresas_cart,
+        'noconsta_cart': noconsta_cart,
         'today': timezone.now().strftime('%Y-%m-%d'),
     })
 
@@ -688,15 +695,15 @@ def agregar_empresa_hx(request):
     if not ruc:
         return HttpResponse('<div class="p-2 text-red-600 text-sm">Debe ingresar un RUC.</div>', status=400)
 
-    resultado = buscar_empresa(ruc)
-    if not resultado:
+    resultados_raw = buscar_empresa_todas_paginas(ruc)
+    if not resultados_raw:
         return HttpResponse('<div class="p-2 text-red-600 text-sm">No se encontró empresa con ese RUC.</div>', status=404)
 
     empresas_cart = request.session.get('empresas_cart', [])
 
-    # Normalizar TODOS los resultados raw
+    # Normalizar TODOS los resultados raw (todas las páginas)
     nuevas_empresas = []
-    for raw in resultado['resultados_raw']:
+    for raw in resultados_raw:
         emp = normalizar_datos_empresa(raw)
         emp['ubicacion_completa'] = construir_ubicacion_completa(emp)
         nuevas_empresas.append(emp)
@@ -753,6 +760,45 @@ def remover_empresa_hx(request, index):
         'empresas_cart': empresas_cart,
     })
     response['HX-Trigger'] = 'empresas-changed'
+    return response
+
+
+@login_required
+@require_http_methods(["POST"])
+def agregar_noconsta_hx(request):
+    """Agregar una entrada de No Consta al carrito de sesión (HTMX)."""
+    texto = request.POST.get('noconsta_texto', '').strip()
+    if not texto:
+        return HttpResponse(
+            '<div class="p-2 text-red-600 text-sm">Debe ingresar un texto.</div>',
+            status=400
+        )
+
+    noconsta_cart = request.session.get('noconsta_cart', [])
+    noconsta_cart.append(texto)
+    request.session['noconsta_cart'] = noconsta_cart
+
+    response = render(request, 'tramites/partials/lista_noconsta_cart.html', {
+        'noconsta_cart': noconsta_cart,
+    })
+    response['HX-Trigger'] = 'noconsta-changed'
+    return response
+
+
+@login_required
+@require_http_methods(["DELETE"])
+def remover_noconsta_hx(request, index):
+    """Remover una entrada de No Consta del carrito de sesión por índice (HTMX)."""
+    noconsta_cart = request.session.get('noconsta_cart', [])
+
+    if 0 <= index < len(noconsta_cart):
+        noconsta_cart.pop(index)
+        request.session['noconsta_cart'] = noconsta_cart
+
+    response = render(request, 'tramites/partials/lista_noconsta_cart.html', {
+        'noconsta_cart': noconsta_cart,
+    })
+    response['HX-Trigger'] = 'noconsta-changed'
     return response
 
 

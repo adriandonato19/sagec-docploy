@@ -164,7 +164,7 @@
            CONTENIDO — fluye naturalmente, WeasyPrint pagina automático
            ============================================================ */
         .document-container {
-            padding-left: 1.8cm;
+            padding-left: 0.5cm;
         }
 
         .document-header {
@@ -340,11 +340,12 @@
                 En atención al Oficio No. <strong>{{ tramite.numero_oficio_externo|default:"[N° OFICIO]" }}</strong>, Carpeta No. <strong>{{ tramite.numero_carpetilla|default:"[N° CARPETILLA]" }}</strong>, con fecha del <strong>{{ fecha_solicitud_formateada }}</strong>, y recibido en nuestro despacho el <strong>{{ fecha_recibido_formateada|default:fecha_solicitud_formateada }}</strong>, suscrito por su persona mediante la cual nos solicita <strong>{{ tramite.objetivo_solicitud|default:"[OBJETIVO DE LA SOLICITUD]" }}</strong>, por lo cual, en tal sentido tenemos a bien manifestarle lo siguiente:
             </p>
 
-            {% if empresas %}
-            <!-- Párrafo de certificación -->
+            {% if empresas or noconsta_entries %}
+            <!-- Párrafo introductorio -->
             <p class="parrafo">
                 La Dirección General de Comercio Interior, amparados por la Ley No.5 de 11 de enero de 2007, que agiliza el proceso de apertura de empresas y establece otras disposiciones, luego de la revisión correspondiente a nuestros archivos y al sistema <strong>www.panamaemprende.gob.pa</strong>, podemos <strong>CERTIFICAR</strong> que <strong>CONSTA</strong> registro de lo siguiente:
             </p>
+            {% endif %}
 
             <!-- Bloque de empresas (formato bullet list para oficio) -->
             {% for emp in empresas %}
@@ -357,7 +358,13 @@
                 </ul>
             </div>
             {% endfor %}
-            {% endif %}
+
+            <!-- Bloques No Aparece — uno por entrada -->
+            {% for entrada in noconsta_entries %}
+            <p class="parrafo">
+                <strong>NO APARECE</strong> dentro del Sistema Panamá Emprende del Ministerio de Comercio e Industrias, Licencia, Registro Comercial o Aviso de Operación con los siguientes datos: {{ entrada }}
+            </p>
+            {% endfor %}
 
             <!-- Bloque de preguntas (dinámico) -->
             {% if preguntas %}

@@ -135,6 +135,9 @@ def generar_html_tramite(tramite):
     logo_path = settings.BASE_DIR / 'static' / 'img' / 'logo_oficial.png'
     footer_path = settings.BASE_DIR / 'static' / 'img' / 'footer_certificado.png'
 
+    # Entradas de No Consta (lista de strings ingresadas manualmente)
+    noconsta_entries = tramite.noconsta_snapshot if isinstance(tramite.noconsta_snapshot, list) else []
+
     context = {
         'tramite': tramite,
         'empresa': empresa_data,
@@ -147,6 +150,7 @@ def generar_html_tramite(tramite):
         'fecha_inicio_ops_formateada': fecha_inicio_ops_formateada,
         'logo_path': str(logo_path),
         'footer_path': str(footer_path),
+        'noconsta_entries': noconsta_entries,
     }
 
     return render_to_string(template_name, context)
