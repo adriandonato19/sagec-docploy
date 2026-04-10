@@ -19,8 +19,8 @@ urlpatterns = [
     path('<uuid:id>/hx/responder-preguntas/', views.responder_preguntas_hx, name='responder_preguntas_hx'),
     path('<uuid:id>/hx/responder-solicitud/', views.responder_solicitud_hx, name='responder_solicitud_hx'),
     path('hx/agregar-empresa/', views.agregar_empresa_hx, name='agregar_empresa_hx'),
+    path('hx/agregar-empresa-desde-resultado/', views.agregar_empresa_desde_resultado_hx, name='agregar_empresa_desde_resultado_hx'),
     path('hx/remover-empresa/<int:index>/', views.remover_empresa_hx, name='remover_empresa_hx'),
     path('hx/remover-empresa-ruc/', views.remover_empresa_por_ruc_hx, name='remover_empresa_por_ruc_hx'),
-    path('hx/agregar-noconsta/', views.agregar_noconsta_hx, name='agregar_noconsta_hx'),
     path('hx/remover-noconsta/<int:index>/', views.remover_noconsta_hx, name='remover_noconsta_hx'),
 ]

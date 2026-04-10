@@ -3,7 +3,7 @@
         <!-- Header -->
         <div class="flex items-center justify-between p-6 border-b border-gray-100 bg-blue-900 text-white rounded-t-xl">
             <h3 class="text-xl font-bold">Información Detallada de la Empresa</h3>
-            <button onclick="document.getElementById('modal-container').remove()" class="text-white hover:text-yellow-400 transition-colors">
+            <button type="button" onclick="document.getElementById('modal-container').remove()" class="text-white hover:text-yellow-400 transition-colors">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
@@ -67,10 +67,11 @@
 
         <!-- Footer -->
         <div class="flex justify-end p-6 border-t border-gray-100 bg-gray-50 rounded-b-xl gap-4">
-            <button onclick="document.getElementById('modal-container').remove()" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors">
+            <button type="button" onclick="document.getElementById('modal-container').remove()" class="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors">
                 Cerrar
             </button>
-            <button hx-post="{% url 'tramites:agregar_empresa_hx' %}"
+            <button type="button"
+                    hx-post="{% url 'tramites:agregar_empresa_hx' %}"
                     hx-target="#empresas-cart"
                     hx-swap="outerHTML"
                     hx-vals='{"ruc_empresa": "{{ empresa.ruc_completo }}"}'
@@ -81,4 +82,3 @@
         </div>
     </div>
 </div>
-

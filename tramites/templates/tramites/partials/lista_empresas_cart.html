@@ -12,7 +12,8 @@
                 </p>
                 <p class="text-sm text-gray-500">RUC: {{ emp.ruc_completo|default:emp.ruc|default:"N/A" }} | Aviso: {{ emp.numero_aviso|default:"N/A" }}</p>
             </div>
-            <button hx-delete="{% url 'tramites:remover_empresa_hx' index=forloop.counter0 %}"
+            <button type="button"
+                    hx-delete="{% url 'tramites:remover_empresa_hx' index=forloop.counter0 %}"
                     hx-target="#empresas-cart"
                     hx-swap="outerHTML"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'

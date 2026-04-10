@@ -50,8 +50,17 @@ OTP_TOTP_ISSUER = 'SAGEC MICI'
 # 6. Content Security Policy (CSP)
 # Define de dónde puede cargar recursos el sistema (solo de sí mismo)
 CSP_DEFAULT_SRC = ("'self'",)
-CSP_STYLE_SRC = ("'self'", "https://fonts.googleapis.com")
-CSP_SCRIPT_SRC = ("'self'",)
+CSP_STYLE_SRC = ("'self'", "https://fonts.googleapis.com", "'unsafe-inline'")
+# 'unsafe-inline' requerido para: importmap de TipTap, bloques <script> inline del sistema,
+# y scripts de Tailwind CDN. Los CDN externos se listan explícitamente.
+CSP_SCRIPT_SRC = (
+    "'self'",
+    "'unsafe-inline'",
+    "https://cdn.tailwindcss.com",
+    "https://unpkg.com",
+    "https://esm.sh",
+)
+CSP_CONNECT_SRC = ("'self'", "https://esm.sh")  # esm.sh resuelve sub-dependencias en runtime
 CSP_IMG_SRC = ("'self'", "data:") # Permitir imágenes base64 para los logos del MICI
 
 # 7. Restricción de IP (Estrategia C)

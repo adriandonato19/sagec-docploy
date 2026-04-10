@@ -14,6 +14,8 @@ import qrcode
 import base64
 from datetime import datetime
 
+from integracion.services import normalizar_noconsta_entries
+
 
 def formatear_fecha_espanol(fecha):
     """
@@ -135,8 +137,8 @@ def generar_html_tramite(tramite):
     logo_path = settings.BASE_DIR / 'static' / 'img' / 'logo_oficial.png'
     footer_path = settings.BASE_DIR / 'static' / 'img' / 'footer_certificado.png'
 
-    # Entradas de No Consta (lista de strings ingresadas manualmente)
-    noconsta_entries = tramite.noconsta_snapshot if isinstance(tramite.noconsta_snapshot, list) else []
+    # Entradas de No Consta con compatibilidad hacia snapshots legados.
+    noconsta_entries = normalizar_noconsta_entries(tramite.noconsta_snapshot)
 
     context = {
         'tramite': tramite,
@@ -196,6 +198,65 @@ def generar_pdf_tramite(tramite):
     return generar_pdf_desde_html(html_content)
 
 
+def sanitizar_html_para_weasyprint(html_content):
+    """
+    Limpia el HTML producido por TipTap para compatibilidad con WeasyPrint.
+
+    - Convierte <mark> con data-color a <span style="background-color:...">
+    - Asegura que las tablas tengan border-collapse
+    - Elimina atributos data-* y clases internas de ProseMirror
+    - Normaliza br vacíos de TipTap
+
+    $Reusable$
+    """
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(html_content, 'html.parser')
+
+    # Convertir <mark> a <span style="background-color:..."> para WeasyPrint
+    for mark in soup.find_all('mark'):
+        span = soup.new_tag('span')
+        # TipTap Highlight pone el color en data-color o como style
+        color = mark.get('data-color')
+        existing_style = mark.get('style', '')
+        if color:
+            span['style'] = f'background-color: {color}; {existing_style}'.strip('; ')
+        elif 'background' in existing_style:
+            span['style'] = existing_style
+        else:
+            span['style'] = 'background-color: #FFFF00'
+        span.extend(list(mark.children))
+        mark.replace_with(span)
+
+    # Asegurar estilos de borde en tablas
+    for table in soup.find_all('table'):
+        existing = table.get('style', '')
+        if 'border-collapse' not in existing:
+            table['style'] = f'border-collapse: collapse; width: 100%; {existing}'.strip()
+
+    for cell in soup.find_all(['td', 'th']):
+        existing = cell.get('style', '')
+        if 'border' not in existing:
+            cell['style'] = f'border: 1px solid #000; padding: 4px 8px; {existing}'.strip()
+
+    # Eliminar atributos data-* de TipTap
+    for tag in soup.find_all(True):
+        attrs_to_remove = [a for a in list(tag.attrs) if a.startswith('data-')]
+        for attr in attrs_to_remove:
+            del tag[attr]
+
+    # Eliminar clases internas de ProseMirror
+    for tag in soup.find_all(True):
+        if tag.get('class'):
+            clases_limpias = [c for c in tag['class'] if not c.startswith('ProseMirror')]
+            if clases_limpias:
+                tag['class'] = clases_limpias
+            else:
+                del tag['class']
+
+    return str(soup)
+
+
 def extraer_contenido_editable(html_completo):
     """Extrae innerHTML de .document-container del HTML del PDF."""
     from bs4 import BeautifulSoup
@@ -207,14 +268,17 @@ def extraer_contenido_editable(html_completo):
 
 
 def reinyectar_contenido_editado(html_original, contenido_editado):
-    """Reemplaza innerHTML de .document-container con contenido editado."""
+    """Reemplaza innerHTML de .document-container con contenido editado.
+    Aplica sanitización para compatibilidad con WeasyPrint antes de reinyectar.
+    """
     from bs4 import BeautifulSoup
+    contenido_sanitizado = sanitizar_html_para_weasyprint(contenido_editado)
     soup = BeautifulSoup(html_original, 'html.parser')
     container = soup.select_one('.document-container')
     if not container:
         raise ValueError("No se encontró .document-container en el HTML")
     container.clear()
-    edited_soup = BeautifulSoup(contenido_editado, 'html.parser')
+    edited_soup = BeautifulSoup(contenido_sanitizado, 'html.parser')
     for child in list(edited_soup.children):
         container.append(child)
     return str(soup)

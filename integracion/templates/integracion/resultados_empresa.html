@@ -9,7 +9,10 @@ Actualizado para soportar modal, toggle agregar/remover, y paginación.
 <!-- Tabla de Avisos de Operación -->
 <div class="bg-white shadow-lg rounded-lg p-6 animate-fade-in">
     <div class="flex items-center justify-between mb-6">
-        <h2 class="text-xl font-bold text-gray-800">Avisos de Operación Encontrados</h2>
+        <div>
+            <h2 class="text-xl font-bold text-gray-800">Avisos de Operación Encontrados</h2>
+            <p class="text-sm text-gray-500 mt-1">Filtro aplicado: {{ campo_label }} = "{{ query }}"</p>
+        </div>
         <span class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-bold rounded-full">
             {{ paginacion.total }} Registro(s)
         </span>
@@ -56,7 +59,8 @@ Actualizado para soportar modal, toggle agregar/remover, y paginación.
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
                         <div class="flex items-center justify-center space-x-3">
                             <!-- Acción Ver (Abre Modal) -->
-                            <button hx-get="{% url 'integracion:detalle_empresa_hx' aviso=aviso.numero_aviso %}"
+                            <button type="button"
+                                    hx-get="{% url 'integracion:detalle_empresa_hx' aviso=aviso.numero_aviso %}"
                                     hx-target="#modal-target"
                                     class="text-blue-600 hover:text-blue-900 font-bold flex items-center group">
                                 <svg class="w-4 h-4 mr-1 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,7 +72,8 @@ Actualizado para soportar modal, toggle agregar/remover, y paginación.
 
                             {% if aviso.ruc_completo in rucs_en_cart %}
                             <!-- Acción Remover del Trámite -->
-                            <button hx-post="{% url 'tramites:remover_empresa_por_ruc_hx' %}"
+                            <button type="button"
+                                    hx-post="{% url 'tramites:remover_empresa_por_ruc_hx' %}"
                                     hx-target="#empresas-cart"
                                     hx-swap="outerHTML"
                                     hx-vals='{"ruc_empresa": "{{ aviso.ruc_completo }}"}'
@@ -80,7 +85,8 @@ Actualizado para soportar modal, toggle agregar/remover, y paginación.
                             </button>
                             {% else %}
                             <!-- Acción Agregar al Trámite -->
-                            <button hx-post="{% url 'tramites:agregar_empresa_hx' %}"
+                            <button type="button"
+                                    hx-post="{% url 'tramites:agregar_empresa_desde_resultado_hx' %}"
                                     hx-target="#empresas-cart"
                                     hx-swap="outerHTML"
                                     hx-vals='{"ruc_empresa": "{{ aviso.ruc_completo }}"}'
@@ -108,7 +114,9 @@ Actualizado para soportar modal, toggle agregar/remover, y paginación.
         </p>
         <div class="flex gap-2">
             {% if paginacion.has_previous %}
-            <button hx-get="{% url 'integracion:api_search' %}?ruc_empresa={{ query }}&page={{ paginacion.current_page|add:"-1" }}"
+            <button type="button"
+                    data-empresa-pagination="true"
+                    hx-get="{% url 'integracion:api_search' %}?empresa_query={{ query|urlencode }}&campo_busqueda={{ campo_busqueda|urlencode }}&page={{ paginacion.current_page|add:"-1" }}"
                     hx-target="#resultados-empresa-inline"
                     hx-swap="innerHTML"
                     class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
@@ -116,7 +124,9 @@ Actualizado para soportar modal, toggle agregar/remover, y paginación.
             </button>
             {% endif %}
             {% if paginacion.has_next %}
-            <button hx-get="{% url 'integracion:api_search' %}?ruc_empresa={{ query }}&page={{ paginacion.current_page|add:"1" }}"
+            <button type="button"
+                    data-empresa-pagination="true"
+                    hx-get="{% url 'integracion:api_search' %}?empresa_query={{ query|urlencode }}&campo_busqueda={{ campo_busqueda|urlencode }}&page={{ paginacion.current_page|add:"1" }}"
                     hx-target="#resultados-empresa-inline"
                     hx-swap="innerHTML"
                     class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
@@ -130,10 +140,21 @@ Actualizado para soportar modal, toggle agregar/remover, y paginación.
 
 <script>
     // Re-fetch search results when cart changes to update Agregar/Remover toggles
-    document.body.addEventListener('empresas-changed', function() {
-        const input = document.getElementById('ruc_empresa_input');
-        if (input && input.value.trim()) {
-            htmx.ajax('GET', '{% url "integracion:api_search" %}?ruc_empresa=' + encodeURIComponent(input.value.trim()), {target: '#resultados-empresa-inline', swap: 'innerHTML'});
-        }
-    });
+    if (!window.__empresasChangedListenerRegistered) {
+        document.body.addEventListener('empresas-changed', function() {
+            const input = document.getElementById('empresa_query_input');
+            const select = document.getElementById('campo_busqueda_select');
+            if (input && select && input.value.trim()) {
+                const params = new URLSearchParams({
+                    empresa_query: input.value.trim(),
+                    campo_busqueda: select.value,
+                });
+                htmx.ajax('GET', '{% url "integracion:api_search" %}?' + params.toString(), {
+                    target: '#resultados-empresa-inline',
+                    swap: 'innerHTML'
+                });
+            }
+        });
+        window.__empresasChangedListenerRegistered = true;
+    }
 </script>

@@ -3,8 +3,9 @@
     <div class="space-y-2">
         {% for entrada in noconsta_cart %}
         <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-            <p class="text-sm text-gray-800">{{ entrada }}</p>
-            <button hx-delete="{% url 'tramites:remover_noconsta_hx' index=forloop.counter0 %}"
+            <p class="text-sm text-gray-800">{{ entrada.descripcion }}</p>
+            <button type="button"
+                    hx-delete="{% url 'tramites:remover_noconsta_hx' index=forloop.counter0 %}"
                     hx-target="#noconsta-cart"
                     hx-swap="outerHTML"
                     hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'

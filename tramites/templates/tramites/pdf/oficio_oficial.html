@@ -273,6 +273,34 @@
             color: #666;
         }
 
+        /* ============================================================
+           SOPORTE PARA CONTENIDO EDITADO CON TIPTAP
+           ============================================================ */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 0.3cm 0;
+        }
+        td, th {
+            border: 1px solid #000;
+            padding: 4px 8px;
+            vertical-align: top;
+            font-size: 10pt;
+        }
+        th {
+            font-weight: bold;
+            background-color: #f3f4f6;
+        }
+        u { text-decoration: underline; }
+        s { text-decoration: line-through; }
+        sub { vertical-align: sub; font-size: 0.8em; }
+        sup { vertical-align: super; font-size: 0.8em; }
+        mark { background-color: #FFFF00; }
+        hr { border: none; border-top: 1px solid #999; margin: 0.4cm 0; }
+        /* Párrafos sin clase dentro de .document-container heredan el estilo de cuerpo */
+        .document-container p { margin-bottom: 0.4cm; }
+        .cuerpo p { text-align: justify; }
+
     </style>
 </head>
 <body>
@@ -343,14 +371,14 @@
             {% if empresas or noconsta_entries %}
             <!-- Párrafo introductorio -->
             <p class="parrafo">
-                La Dirección General de Comercio Interior, amparados por la Ley No.5 de 11 de enero de 2007, que agiliza el proceso de apertura de empresas y establece otras disposiciones, luego de la revisión correspondiente a nuestros archivos y al sistema <strong>www.panamaemprende.gob.pa</strong>, podemos <strong>CERTIFICAR</strong> que <strong>CONSTA</strong> registro de lo siguiente:
+                La Dirección General de Comercio Interior, amparados por la Ley No.5 de 11 de enero de 2007, que agiliza el proceso de apertura de empresas y establece otras disposiciones, luego de la revisión correspondiente a nuestros archivos y al sistema <strong>www.panamaemprende.gob.pa</strong>, podemos <strong>CERTIFICAR</strong> lo siguiente:
             </p>
             {% endif %}
 
             <!-- Bloque de empresas (formato bullet list para oficio) -->
             {% for emp in empresas %}
             <div class="empresas-lista empresa-bloque">
-                <p class="empresa-nombre-header">{{ emp.razon_social|default:emp.razon_comercial|default:"EMPRESA" }}</p>
+                <p class="empresa-nombre-header"><strong>CONSTA</strong> registro de: {{ emp.razon_social|default:emp.razon_comercial|default:"EMPRESA" }}</p>
                 <ul>
                     <li>
                         Aviso de Operación: <strong>{{ emp.numero_aviso }}</strong>{% if emp.numero_licencia %}, Número de Licencia: <strong>{{ emp.numero_licencia }}</strong>{% endif %}{% if emp.razon_comercial %}, Razón Comercial: <strong>{{ emp.razon_comercial }}</strong>{% endif %}{% if emp.representante_legal %}, Representante Legal: <strong>{{ emp.representante_legal }}</strong>{% endif %}{% if emp.cedula_representante %}, Cédula de Representante Legal: <strong>{{ emp.cedula_representante }}</strong>{% endif %}{% if emp.razon_social %}, Razón Social: <strong>{{ emp.razon_social }}</strong>{% endif %}{% if emp.ruc %}, RUC: <strong>{{ emp.ruc }}{% if emp.dv %}-{{ emp.dv }}{% endif %}</strong>{% endif %}{% if emp.fecha_inicio_operaciones %}, Fecha de Inicio de Operaciones: <strong>{{ emp.fecha_inicio_operaciones_formateada|default:emp.fecha_inicio_operaciones }}</strong>{% endif %}{% if emp.ubicacion_completa %}, Dirección del Establecimiento: <strong>{{ emp.ubicacion_completa }}</strong>{% endif %}{% if emp.estatus %}, Estatus: <strong>{{ emp.estatus }}</strong>{% endif %}.{% if emp.estatus == "En Solicitud" %} Es importante señalar que el estatus "En Solicitud" obedece a que nunca fue concluido el trámite en el sistema <strong>www.panamaemprende.gob.pa</strong> por lo tanto, no cuenta con un consecutivo en el Aviso de operación y no cuenta con el pago del derecho único del Aviso.{% endif %}
@@ -362,7 +390,7 @@
             <!-- Bloques No Aparece — uno por entrada -->
             {% for entrada in noconsta_entries %}
             <p class="parrafo">
-                <strong>NO APARECE</strong> dentro del Sistema Panamá Emprende del Ministerio de Comercio e Industrias, Licencia, Registro Comercial o Aviso de Operación con los siguientes datos: {{ entrada }}
+                <strong>NO CONSTA</strong> registro de Licencia, Registro Comercial ni Aviso de Operación en el Sistema Panamá Emprende del Ministerio de Comercio e Industrias, {{ entrada.frase_certificacion }}
             </p>
             {% endfor %}
 

@@ -95,13 +95,13 @@
         </div>
 
         <!-- Entradas de No Consta -->
-        {% if tramite.noconsta_snapshot %}
+        {% if noconsta_entries %}
         <div class="mb-6">
             <h2 class="text-xl font-semibold mb-4">Entradas de No Consta</h2>
             <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <ul class="list-disc list-inside space-y-1">
-                    {% for entrada in tramite.noconsta_snapshot %}
-                    <li class="text-sm text-gray-800">{{ entrada }}</li>
+                    {% for entrada in noconsta_entries %}
+                    <li class="text-sm text-gray-800">{{ entrada.descripcion }}</li>
                     {% endfor %}
                 </ul>
             </div>

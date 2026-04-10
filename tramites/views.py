@@ -10,16 +10,70 @@ from django.utils import timezone
 from django.conf import settings
 from pathlib import Path
 import os
+import json
 from .models import Tramite, PreguntaOficio
 from .services.generador_pdf import generar_pdf_tramite, generar_html_tramite, generar_pdf_desde_html, calcular_hash_pdf, extraer_contenido_editable, reinyectar_contenido_editado
 from .services.firma_digital import certificado_disponible, firmar_pdf_con_certificado
 from .services.notificaciones import enviar_notificacion_firma
 from identidad.decorators import require_rol
 from identidad.models import UsuarioMICI
-from integracion.services import buscar_empresa, buscar_empresa_todas_paginas
+from integracion.services import (
+    buscar_empresa_por_campo,
+    buscar_empresa_todas_paginas,
+    campo_busqueda_valido,
+    construir_noconsta_entry,
+    es_misma_entrada_noconsta,
+    normalizar_noconsta_entries,
+)
 from integracion.adapters import normalizar_datos_empresa, construir_ubicacion_completa
 from auditoria.services import registrar_evento, obtener_ip_cliente
 from auditoria.models import BitacoraEvento, ConsultaSecuencia
+
+
+def _normalizar_noconsta_en_sesion(request):
+    """Normaliza el carrito de No Consta y preserva compatibilidad con sesiones legadas."""
+    noconsta_cart = normalizar_noconsta_entries(request.session.get('noconsta_cart', []))
+    if request.session.get('noconsta_cart', []) != noconsta_cart:
+        request.session['noconsta_cart'] = noconsta_cart
+    return noconsta_cart
+
+
+def _agregar_empresas_por_ruc(request, ruc: str):
+    """Agrega al carrito todos los avisos asociados al RUC recibido."""
+    ruc = str(ruc or '').strip()
+    if not ruc:
+        return HttpResponse('<div class="p-2 text-red-600 text-sm">Debe ingresar un RUC.</div>', status=400)
+
+    resultados_raw = buscar_empresa_todas_paginas(ruc)
+    if not resultados_raw:
+        return HttpResponse('<div class="p-2 text-red-600 text-sm">No se encontró empresa con ese RUC.</div>', status=404)
+
+    empresas_cart = request.session.get('empresas_cart', [])
+
+    nuevas_empresas = []
+    for raw in resultados_raw:
+        emp = normalizar_datos_empresa(raw)
+        emp['ubicacion_completa'] = construir_ubicacion_completa(emp)
+        nuevas_empresas.append(emp)
+
+    avisos_en_cart = {e.get('numero_aviso') for e in empresas_cart}
+    agregados = 0
+    for emp in nuevas_empresas:
+        if emp.get('numero_aviso') not in avisos_en_cart:
+            empresas_cart.append(emp)
+            avisos_en_cart.add(emp.get('numero_aviso'))
+            agregados += 1
+
+    if agregados == 0:
+        return HttpResponse('<div class="p-2 text-yellow-600 text-sm">Todos los avisos de este RUC ya fueron agregados.</div>', status=400)
+
+    request.session['empresas_cart'] = empresas_cart
+
+    response = render(request, 'tramites/partials/lista_empresas_cart.html', {
+        'empresas_cart': empresas_cart,
+    })
+    response['HX-Trigger'] = 'empresas-changed'
+    return response
 
 
 @login_required
@@ -108,7 +162,7 @@ def crear_tramite_view(request):
 
         # Empresas y entradas No Consta del carrito en sesión
         empresas_cart = request.session.get('empresas_cart', [])
-        noconsta_cart = request.session.get('noconsta_cart', [])
+        noconsta_cart = _normalizar_noconsta_en_sesion(request)
 
         # Oficios requieren carpetilla y oficio externo
         if tipo_documento == 'OFICIO':
@@ -203,7 +257,7 @@ def formulario_tipo_hx(request):
 
     tipo_labels = {'CERTIFICADO': 'Certificado', 'OFICIO': 'Oficio'}
     empresas_cart = request.session.get('empresas_cart', [])
-    noconsta_cart = request.session.get('noconsta_cart', [])
+    noconsta_cart = _normalizar_noconsta_en_sesion(request)
 
     return render(request, 'tramites/partials/formulario_tipo.html', {
         'tipo_documento': tipo_documento,
@@ -289,6 +343,7 @@ def detalle_view(request, id):
 
     return render(request, 'tramites/detalle.html', {
         'tramite': tramite,
+        'noconsta_entries': normalizar_noconsta_entries(tramite.noconsta_snapshot),
         'preguntas': preguntas,
         'todas_respondidas': todas_respondidas,
     })
@@ -688,45 +743,52 @@ def responder_solicitud_hx(request, id):
 @login_required
 @require_http_methods(["POST"])
 def agregar_empresa_hx(request):
-    """Agregar todos los avisos de un RUC al carrito de sesión (HTMX)."""
-    ruc_input = request.POST.get('ruc_empresa', '').strip()
-    ruc = "-".join(ruc_input.split("-")[:3])
+    """Agregar empresa por RUC o generar No Consta automático si no hay resultados."""
+    campo_busqueda = campo_busqueda_valido(request.POST.get('campo_busqueda', 'ruc'))
+    query = (
+        request.POST.get('ruc_empresa', '') or request.POST.get('empresa_query', '')
+    ).strip()
+    ruc = "-".join(query.split("-")[:3])
 
-    if not ruc:
-        return HttpResponse('<div class="p-2 text-red-600 text-sm">Debe ingresar un RUC.</div>', status=400)
+    if not query:
+        return HttpResponse('<div class="p-2 text-red-600 text-sm">Debe ingresar un valor de búsqueda.</div>', status=400)
 
-    resultados_raw = buscar_empresa_todas_paginas(ruc)
-    if not resultados_raw:
-        return HttpResponse('<div class="p-2 text-red-600 text-sm">No se encontró empresa con ese RUC.</div>', status=404)
+    resultado_busqueda = buscar_empresa_por_campo(query, campo_busqueda, page=1)
+    if not resultado_busqueda:
+        noconsta_entry = construir_noconsta_entry(campo_busqueda, query)
+        noconsta_cart = _normalizar_noconsta_en_sesion(request)
 
-    empresas_cart = request.session.get('empresas_cart', [])
+        if any(es_misma_entrada_noconsta(actual, noconsta_entry) for actual in noconsta_cart):
+            return HttpResponse(
+                '<div class="p-2 text-yellow-600 text-sm">Esta entrada de No Consta ya fue agregada.</div>',
+                status=400
+            )
 
-    # Normalizar TODOS los resultados raw (todas las páginas)
-    nuevas_empresas = []
-    for raw in resultados_raw:
-        emp = normalizar_datos_empresa(raw)
-        emp['ubicacion_completa'] = construir_ubicacion_completa(emp)
-        nuevas_empresas.append(emp)
+        noconsta_cart.append(noconsta_entry)
+        request.session['noconsta_cart'] = noconsta_cart
 
-    # Dedup por numero_aviso
-    avisos_en_cart = {e.get('numero_aviso') for e in empresas_cart}
-    agregados = 0
-    for emp in nuevas_empresas:
-        if emp.get('numero_aviso') not in avisos_en_cart:
-            empresas_cart.append(emp)
-            avisos_en_cart.add(emp.get('numero_aviso'))
-            agregados += 1
+        response = render(request, 'tramites/partials/lista_noconsta_cart.html', {
+            'noconsta_cart': noconsta_cart,
+        })
+        response['HX-Retarget'] = '#noconsta-cart'
+        response['HX-Reswap'] = 'outerHTML'
+        response['HX-Trigger'] = 'noconsta-changed'
+        return response
 
-    if agregados == 0:
-        return HttpResponse('<div class="p-2 text-yellow-600 text-sm">Todos los avisos de este RUC ya fueron agregados.</div>', status=400)
+    if campo_busqueda != 'ruc':
+        return HttpResponse(
+            '<div class="p-2 text-red-600 text-sm">La búsqueda encontró resultados. Agregue la empresa desde una fila de la tabla.</div>',
+            status=400
+        )
 
-    request.session['empresas_cart'] = empresas_cart
+    return _agregar_empresas_por_ruc(request, ruc)
 
-    response = render(request, 'tramites/partials/lista_empresas_cart.html', {
-        'empresas_cart': empresas_cart,
-    })
-    response['HX-Trigger'] = 'empresas-changed'
-    return response
+
+@login_required
+@require_http_methods(["POST"])
+def agregar_empresa_desde_resultado_hx(request):
+    """Agrega una empresa desde una fila de resultados usando su RUC."""
+    return _agregar_empresas_por_ruc(request, request.POST.get('ruc_empresa', '').strip())
 
 
 @login_required
@@ -764,32 +826,10 @@ def remover_empresa_hx(request, index):
 
 
 @login_required
-@require_http_methods(["POST"])
-def agregar_noconsta_hx(request):
-    """Agregar una entrada de No Consta al carrito de sesión (HTMX)."""
-    texto = request.POST.get('noconsta_texto', '').strip()
-    if not texto:
-        return HttpResponse(
-            '<div class="p-2 text-red-600 text-sm">Debe ingresar un texto.</div>',
-            status=400
-        )
-
-    noconsta_cart = request.session.get('noconsta_cart', [])
-    noconsta_cart.append(texto)
-    request.session['noconsta_cart'] = noconsta_cart
-
-    response = render(request, 'tramites/partials/lista_noconsta_cart.html', {
-        'noconsta_cart': noconsta_cart,
-    })
-    response['HX-Trigger'] = 'noconsta-changed'
-    return response
-
-
-@login_required
 @require_http_methods(["DELETE"])
 def remover_noconsta_hx(request, index):
     """Remover una entrada de No Consta del carrito de sesión por índice (HTMX)."""
-    noconsta_cart = request.session.get('noconsta_cart', [])
+    noconsta_cart = _normalizar_noconsta_en_sesion(request)
 
     if 0 <= index < len(noconsta_cart):
         noconsta_cart.pop(index)
@@ -820,9 +860,11 @@ def editar_pdf_view(request, id):
         contenido_editado = request.POST.get('contenido_editado', '').strip()
         if not contenido_editado:
             messages.error(request, 'El contenido no puede estar vacío.')
+            contenido_editable_err = extraer_contenido_editable(html_completo)
             return render(request, 'tramites/editar_pdf.html', {
                 'tramite': tramite,
-                'contenido_editable': extraer_contenido_editable(html_completo),
+                'contenido_editable': contenido_editable_err,
+                'contenido_editable_json': json.dumps(contenido_editable_err),
             })
 
         # Re-inyectar contenido editado en el HTML completo
@@ -867,4 +909,5 @@ def editar_pdf_view(request, id):
     return render(request, 'tramites/editar_pdf.html', {
         'tramite': tramite,
         'contenido_editable': contenido_editable,
+        'contenido_editable_json': json.dumps(contenido_editable),
     })

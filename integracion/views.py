@@ -2,7 +2,12 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_http_methods
 from django.http import Http404
-from .services import buscar_empresa
+from .services import (
+    buscar_empresa_por_campo,
+    campo_busqueda_valido,
+    construir_noconsta_entry,
+    etiqueta_campo_busqueda,
+)
 from .adapters import normalizar_datos_empresa, construir_ubicacion_completa
 from .api_client import consultar_empresa as api_consultar
 from auditoria.services import registrar_evento, obtener_ip_cliente, registrar_consulta_secuencial
@@ -16,8 +21,17 @@ def api_search_view(request):
     Endpoint HTMX para búsqueda de empresas.
     Devuelve fragmento HTML con tabla de avisos.
     """
-    query = (request.GET.get('q', '') or request.GET.get('ruc_empresa', '') or
-             request.POST.get('q', '')).strip()
+    query = (
+        request.GET.get('empresa_query', '') or
+        request.GET.get('q', '') or
+        request.GET.get('ruc_empresa', '') or
+        request.POST.get('empresa_query', '') or
+        request.POST.get('q', '') or
+        request.POST.get('ruc_empresa', '')
+    ).strip()
+    campo_busqueda = campo_busqueda_valido(
+        request.GET.get('campo_busqueda', '') or request.POST.get('campo_busqueda', '')
+    )
 
     if not query:
         return render(request, 'integracion/resultados_vacios.html')
@@ -27,7 +41,7 @@ def api_search_view(request):
     except (ValueError, TypeError):
         page = 1
 
-    resultado = buscar_empresa(query, page=page)
+    resultado = buscar_empresa_por_campo(query, campo_busqueda, page=page)
 
     # Registrar evento de consulta
     ip_cliente = obtener_ip_cliente(request)
@@ -62,13 +76,22 @@ def api_search_view(request):
         tipo_evento=BitacoraEvento.CONSULTA_API,
         actor=request.user,
         ip_origen=ip_cliente,
-        descripcion=f'Consulta de empresa por RUC: {query}',
-        metadata={'query': query, 'encontrado': resultado is not None, 'consulta_secuencia': consulta_seq.numero}
+        descripcion=f'Consulta de empresa por {etiqueta_campo_busqueda(campo_busqueda)}: {query}',
+        metadata={
+            'query': query,
+            'campo_busqueda': campo_busqueda,
+            'encontrado': resultado is not None,
+            'consulta_secuencia': consulta_seq.numero,
+        }
     )
 
     if not resultado:
+        noconsta_entry = construir_noconsta_entry(campo_busqueda, query)
         return render(request, 'integracion/resultados_no_encontrados.html', {
-            'query': query
+            'query': query,
+            'campo_busqueda': campo_busqueda,
+            'campo_label': etiqueta_campo_busqueda(campo_busqueda),
+            'noconsta_entry': noconsta_entry,
         })
 
     # Guardar resultados raw en sesión para el modal de detalle
@@ -83,6 +106,8 @@ def api_search_view(request):
         'avisos': resultado['avisos'],
         'paginacion': resultado['paginacion'],
         'query': query,
+        'campo_busqueda': campo_busqueda,
+        'campo_label': etiqueta_campo_busqueda(campo_busqueda),
         'rucs_en_cart': rucs_en_cart,
     })
 
