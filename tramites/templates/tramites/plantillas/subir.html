@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+
+{% block title %}Nueva Plantilla - SAGEC{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="mb-6">
+        <nav class="text-sm text-gray-500 mb-2">
+            <a href="{% url 'tramites:listar_plantillas' %}" class="hover:text-blue-600">Plantillas</a>
+            <span class="mx-2">/</span>
+            <span class="text-gray-700">Nueva</span>
+        </nav>
+        <h1 class="text-2xl font-bold text-gray-800">Subir nueva plantilla</h1>
+        <p class="text-sm text-gray-600 mt-1">
+            Carga un archivo Word (.docx) con el membrete y opcionalmente un pie de página.
+            El sistema extraerá las imágenes y los márgenes automáticamente.
+        </p>
+    </div>
+
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 text-sm text-blue-800">
+        <p class="font-semibold mb-1">Recomendaciones para el archivo Word</p>
+        <ul class="list-disc list-inside space-y-1">
+            <li>El membrete debe estar en el <strong>encabezado</strong> del documento.</li>
+            <li>El pie de página (opcional) debe estar en el <strong>pie</strong> del documento.</li>
+            <li>Si el encabezado contiene texto en lugar de imagen, se renderizará automáticamente como imagen.</li>
+            <li>Tamaño máximo del archivo: 5 MB.</li>
+        </ul>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="bg-white shadow-lg rounded-lg overflow-hidden">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+        <div class="p-4 bg-red-50 border-b border-red-200 text-sm text-red-700">
+            {{ form.non_field_errors }}
+        </div>
+        {% endif %}
+
+        <div class="p-6 border-b border-gray-200">
+            <label for="{{ form.nombre.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                Nombre de la plantilla
+            </label>
+            <input type="text"
+                   name="{{ form.nombre.name }}"
+                   id="{{ form.nombre.id_for_label }}"
+                   value="{{ form.nombre.value|default:'' }}"
+                   maxlength="120"
+                   required
+                   placeholder="Ej. Membrete oficial 2026"
+                   class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            {% if form.nombre.errors %}
+                <p class="text-xs text-red-600 mt-1">{{ form.nombre.errors|join:" " }}</p>
+            {% endif %}
+        </div>
+
+        <div class="p-6 border-b border-gray-200">
+            <span class="block text-sm font-medium text-gray-700 mb-2">Aplica a</span>
+            <div class="space-y-2">
+                {% for radio in form.tipo_aplicable %}
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+                    {{ radio.tag }}
+                    <span>{{ radio.choice_label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            {% if form.tipo_aplicable.errors %}
+                <p class="text-xs text-red-600 mt-1">{{ form.tipo_aplicable.errors|join:" " }}</p>
+            {% endif %}
+        </div>
+
+        <div class="p-6 border-b border-gray-200">
+            <label for="{{ form.archivo_word.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                Archivo Word (.docx)
+            </label>
+            <input type="file"
+                   name="{{ form.archivo_word.name }}"
+                   id="{{ form.archivo_word.id_for_label }}"
+                   accept=".docx"
+                   required
+                   class="w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            {% if form.archivo_word.errors %}
+                <p class="text-xs text-red-600 mt-1">{{ form.archivo_word.errors|join:" " }}</p>
+            {% endif %}
+        </div>
+
+        <div class="p-6 bg-gray-50 flex justify-end gap-3">
+            <a href="{% url 'tramites:listar_plantillas' %}"
+               class="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
+                Cancelar
+            </a>
+            <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
+                Procesar y crear
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

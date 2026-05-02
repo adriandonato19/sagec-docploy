@@ -11,8 +11,10 @@ from django.conf import settings
 from pathlib import Path
 import os
 import json
-from .models import Tramite, PreguntaOficio
+from .models import Tramite, PreguntaOficio, SecuenciaTramite, PlantillaDocumento
+from .forms import PlantillaDocumentoSubirForm, PlantillaDocumentoMargenesForm
 from .services.generador_pdf import generar_pdf_tramite, generar_html_tramite, generar_pdf_desde_html, calcular_hash_pdf, extraer_contenido_editable, reinyectar_contenido_editado
+from .services.extractor_plantilla import extraer_plantilla_desde_docx
 from .services.firma_digital import certificado_disponible, firmar_pdf_con_certificado
 from .services.notificaciones import enviar_notificacion_firma
 from identidad.decorators import require_rol
@@ -195,7 +197,7 @@ def crear_tramite_view(request):
             empresa_snapshot=empresa_snapshot,
             noconsta_snapshot=noconsta_cart,
             origen_consulta=origen_consulta,
-            numero_referencia=f"{tipo_documento[:3]}-{timezone.now().strftime('%Y%m%d')}-{Tramite.objects.count() + 1}",
+            numero_referencia=Tramite.siguiente_numero_referencia(tipo_documento),
             estado=Tramite.BORRADOR,
             destinatario=destinatario,
             proposito=proposito,
@@ -596,11 +598,11 @@ def descargar_view(request, id):
         messages.error(request, 'El PDF aún no está disponible.')
         return redirect('tramites:detalle', id=tramite.uuid)
     
-    # Determinar qué PDF servir: firmado si existe, sino el original
+    # Determinar qué PDF servir: firmado si existe, sino regenerar desde HTML
     try:
         pdf_content = None
         pdf_filename = f'tramite_{tramite.uuid}.pdf'
-        
+
         # Prioridad 1: PDF firmado si existe y el trámite está firmado
         if tramite.estado == Tramite.FIRMADO and tramite.archivo_pdf_firmado and tramite.archivo_pdf_firmado.name:
             pdf_path = Path(__file__).parent / 'temp_pdfs' / 'firmados' / f'tramite_{tramite.uuid}_firmado.pdf'
@@ -608,27 +610,21 @@ def descargar_view(request, id):
                 with open(pdf_path, 'rb') as f:
                     pdf_content = f.read()
                 pdf_filename = f'tramite_{tramite.uuid}_firmado.pdf'
-        
-        # Prioridad 2: PDF original si existe
-        if not pdf_content and tramite.archivo_pdf and tramite.archivo_pdf.name:
-            pdf_path = Path(__file__).parent / tramite.archivo_pdf.name
-            if pdf_path.exists():
-                with open(pdf_path, 'rb') as f:
-                    pdf_content = f.read()
-        
-        # Prioridad 3: Generar PDF si no existe ninguno
+
+        # Prioridad 2: Regenerar PDF desde html_pdf_editado o plantilla
+        # Siempre regenerar para garantizar que refleje los últimos cambios
         if not pdf_content:
             pdf_bytesio = generar_pdf_tramite(tramite)
             pdf_content = pdf_bytesio.read()
-            
+
             # Guardar PDF generado en carpeta temporal
             temp_pdf_dir = Path(__file__).parent / 'temp_pdfs'
             temp_pdf_dir.mkdir(exist_ok=True)
             pdf_path = temp_pdf_dir / pdf_filename
-            
+
             with open(pdf_path, 'wb') as f:
                 f.write(pdf_content)
-            
+
             # Actualizar modelo si no tenía archivo
             if not tramite.archivo_pdf or not tramite.archivo_pdf.name:
                 tramite.archivo_pdf.name = f'temp_pdfs/{pdf_filename}'
@@ -649,9 +645,12 @@ def descargar_view(request, id):
         inline = request.GET.get('inline', '0') == '1'
         content_disposition = 'inline' if inline else 'attachment'
         
-        # Servir el PDF
+        # Servir el PDF (sin cache para que siempre sirva la versión actual)
         response = HttpResponse(pdf_content, content_type='application/pdf')
         response['Content-Disposition'] = f'{content_disposition}; filename="{pdf_filename}"'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
         return response
     except Exception as e:
         messages.error(request, f'Error al generar el PDF: {str(e)}')
@@ -911,3 +910,380 @@ def editar_pdf_view(request, id):
         'contenido_editable': contenido_editable,
         'contenido_editable_json': json.dumps(contenido_editable),
     })
+
+
+@login_required
+@require_rol(UsuarioMICI.DIRECTOR)
+@require_http_methods(["GET", "POST"])
+def configurar_secuencias_view(request):
+    """Permite al Director ajustar el último número emitido por tipo de documento
+    para el año en curso, de modo que la numeración continúe desde un sistema
+    anterior. Solo afecta el año actual.
+    """
+    anio_actual = timezone.now().year
+    tipos = ['OFICIO', 'CERTIFICADO']
+
+    secuencias = {}
+    for tipo in tipos:
+        sec, _ = SecuenciaTramite.objects.get_or_create(
+            tipo_documento=tipo,
+            anio=anio_actual,
+            defaults={'ultimo_numero': 0},
+        )
+        secuencias[tipo] = sec
+
+    if request.method == 'POST':
+        errores = {}
+        nuevos_valores = {}
+
+        for tipo in tipos:
+            valor_str = request.POST.get(f'ultimo_numero_{tipo}', '').strip()
+            try:
+                valor = int(valor_str)
+                if valor < 0:
+                    raise ValueError
+            except ValueError:
+                errores[tipo] = 'Debe ser un número entero positivo o cero.'
+                continue
+
+            # No permitir bajar la secuencia por debajo de números ya emitidos.
+            tramites_qs = Tramite.objects.filter(
+                tipo_documento=tipo,
+                fecha_creacion__year=anio_actual,
+            ).values_list('numero_referencia', flat=True)
+
+            max_emitido = 0
+            for ref in tramites_qs:
+                try:
+                    n = int(ref)
+                    if n > max_emitido:
+                        max_emitido = n
+                except (TypeError, ValueError):
+                    continue
+
+            if valor < max_emitido:
+                errores[tipo] = (
+                    f'No puede ser menor que el mayor número ya emitido este año ({max_emitido}). '
+                    'Bajarlo generaría duplicados.'
+                )
+                continue
+
+            nuevos_valores[tipo] = valor
+
+        if errores:
+            for tipo, msg in errores.items():
+                messages.error(request, f'{tipo.title()}: {msg}')
+        else:
+            ip_cliente = obtener_ip_cliente(request)
+            for tipo, valor in nuevos_valores.items():
+                sec = secuencias[tipo]
+                anterior = sec.ultimo_numero
+                if anterior == valor:
+                    continue
+                sec.ultimo_numero = valor
+                sec.actualizado_por = request.user
+                sec.save(update_fields=['ultimo_numero', 'actualizado_por', 'fecha_actualizacion'])
+                registrar_evento(
+                    tipo_evento=BitacoraEvento.SECUENCIA_AJUSTADA,
+                    actor=request.user,
+                    ip_origen=ip_cliente,
+                    recurso=sec,
+                    descripcion=(
+                        f'Ajuste de secuencia {tipo} {anio_actual}: '
+                        f'{anterior} → {valor}'
+                    ),
+                    metadata={
+                        'tipo_documento': tipo,
+                        'anio': anio_actual,
+                        'valor_anterior': anterior,
+                        'valor_nuevo': valor,
+                    },
+                )
+            messages.success(request, 'Secuencias actualizadas correctamente.')
+            return redirect('tramites:configurar_secuencias')
+
+    return render(request, 'tramites/configurar_secuencias.html', {
+        'anio_actual': anio_actual,
+        'secuencia_oficio': secuencias['OFICIO'],
+        'secuencia_certificado': secuencias['CERTIFICADO'],
+    })
+
+
+# =============================================================================
+# Gestión de plantillas de membrete (solo Director)
+# =============================================================================
+
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.files.base import ContentFile
+from django.db import transaction
+
+
+@login_required
+@require_rol(UsuarioMICI.DIRECTOR)
+def listar_plantillas_view(request):
+    """Lista todas las plantillas disponibles (Director)."""
+    plantillas = PlantillaDocumento.objects.select_related('creado_por').all()
+
+    activa_certificado = next(
+        (p for p in plantillas if p.activa and p.tipo_aplicable in (PlantillaDocumento.CERTIFICADO, PlantillaDocumento.AMBOS)),
+        None,
+    )
+    activa_oficio = next(
+        (p for p in plantillas if p.activa and p.tipo_aplicable in (PlantillaDocumento.OFICIO, PlantillaDocumento.AMBOS)),
+        None,
+    )
+
+    return render(request, 'tramites/plantillas/lista.html', {
+        'plantillas': plantillas,
+        'activa_certificado': activa_certificado,
+        'activa_oficio': activa_oficio,
+        'usa_sistema_certificado': activa_certificado is None,
+        'usa_sistema_oficio': activa_oficio is None,
+    })
+
+
+@login_required
+@require_rol(UsuarioMICI.DIRECTOR)
+@require_http_methods(['GET', 'POST'])
+def subir_plantilla_view(request):
+    """Sube un .docx, extrae header/footer/márgenes y crea la PlantillaDocumento."""
+    if request.method == 'POST':
+        form = PlantillaDocumentoSubirForm(request.POST, request.FILES)
+        if form.is_valid():
+            archivo_word = form.cleaned_data['archivo_word']
+            try:
+                datos = extraer_plantilla_desde_docx(archivo_word)
+            except DjangoValidationError as exc:
+                form.add_error('archivo_word', exc.messages[0])
+            else:
+                plantilla = form.save(commit=False)
+                plantilla.creado_por = request.user
+                plantilla.activa = False
+                plantilla.preview_visto = False
+                plantilla.margen_superior_cm = datos['margen_superior_cm']
+                plantilla.margen_inferior_cm = datos['margen_inferior_cm']
+                # El sidebar de QR ocupa 2.2cm fijos; forzamos mínimo 2.5cm
+                # aunque el .docx traiga un margen menor, para que no invada el contenido.
+                plantilla.margen_izquierdo_cm = max(
+                    datos['margen_izquierdo_cm'],
+                    PlantillaDocumentoMargenesForm.MARGEN_IZQUIERDO_MIN,
+                )
+                plantilla.margen_derecho_cm = datos['margen_derecho_cm']
+                plantilla.imagen_header_ancho_cm = datos.get('imagen_header_ancho_cm')
+                plantilla.imagen_header_alto_cm = datos.get('imagen_header_alto_cm')
+                plantilla.imagen_footer_ancho_cm = datos.get('imagen_footer_ancho_cm')
+                plantilla.imagen_footer_alto_cm = datos.get('imagen_footer_alto_cm')
+                plantilla.imagen_marca_agua_ancho_cm = datos.get('imagen_marca_agua_ancho_cm')
+                plantilla.imagen_marca_agua_alto_cm = datos.get('imagen_marca_agua_alto_cm')
+                plantilla.cuerpo_plantilla_html = datos.get('cuerpo_html', '') or ''
+                # Guardamos primero para tener PK y poder usar storage
+                archivo_word.seek(0)
+                plantilla.archivo_word = archivo_word
+                plantilla.imagen_header.save(
+                    f'header_{plantilla.nombre[:30]}.png',
+                    ContentFile(datos['imagen_header_bytes']),
+                    save=False,
+                )
+                if datos['imagen_footer_bytes']:
+                    plantilla.imagen_footer.save(
+                        f'footer_{plantilla.nombre[:30]}.png',
+                        ContentFile(datos['imagen_footer_bytes']),
+                        save=False,
+                    )
+                if datos.get('imagen_marca_agua_bytes'):
+                    plantilla.imagen_marca_agua.save(
+                        f'wm_{plantilla.nombre[:30]}.png',
+                        ContentFile(datos['imagen_marca_agua_bytes']),
+                        save=False,
+                    )
+                plantilla.save()
+                registrar_evento(
+                    tipo_evento=BitacoraEvento.PLANTILLA_CREADA,
+                    actor=request.user,
+                    ip_origen=obtener_ip_cliente(request),
+                    recurso=plantilla,
+                    descripcion=f'Plantilla "{plantilla.nombre}" creada ({plantilla.get_tipo_aplicable_display()})',
+                    metadata={
+                        'tipo_aplicable': plantilla.tipo_aplicable,
+                        'tiene_footer': bool(datos['imagen_footer_bytes']),
+                    },
+                )
+                messages.success(
+                    request,
+                    'Plantilla creada. Revisa el preview y ajusta los márgenes antes de activarla.',
+                )
+                return redirect('tramites:detalle_plantilla', plantilla_id=plantilla.id)
+    else:
+        form = PlantillaDocumentoSubirForm()
+
+    return render(request, 'tramites/plantillas/subir.html', {'form': form})
+
+
+@login_required
+@require_rol(UsuarioMICI.DIRECTOR)
+@require_http_methods(['GET', 'POST'])
+def detalle_plantilla_view(request, plantilla_id):
+    """Pantalla de preview + ajuste de márgenes. Marca preview_visto=True al cargar."""
+    plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id)
+
+    if request.method == 'POST':
+        form = PlantillaDocumentoMargenesForm(request.POST, instance=plantilla)
+        es_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        if form.is_valid():
+            form.save()
+            if es_ajax:
+                return HttpResponse(status=204)
+            messages.success(request, 'Márgenes actualizados.')
+            return redirect('tramites:detalle_plantilla', plantilla_id=plantilla.id)
+        elif es_ajax:
+            return HttpResponse(status=400)
+    else:
+        form = PlantillaDocumentoMargenesForm(instance=plantilla)
+        # GET: marcar como vista para habilitar el botón de activar
+        if not plantilla.preview_visto:
+            plantilla.preview_visto = True
+            plantilla.save(update_fields=['preview_visto'])
+
+    margenes_campos = [
+        (form['margen_superior_cm'], 'Superior'),
+        (form['margen_inferior_cm'], 'Inferior'),
+        (form['margen_izquierdo_cm'], 'Izquierdo'),
+        (form['margen_derecho_cm'], 'Derecho'),
+    ]
+
+    return render(request, 'tramites/plantillas/detalle.html', {
+        'plantilla': plantilla,
+        'form': form,
+        'margenes_campos': margenes_campos,
+    })
+
+
+@login_required
+@require_rol(UsuarioMICI.DIRECTOR)
+@require_http_methods(['GET'])
+@xframe_options_sameorigin
+def preview_plantilla_view(request, plantilla_id):
+    """Devuelve un PDF preview generado con datos dummy aplicando la plantilla."""
+    plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id)
+    from .services.generador_pdf import generar_preview_plantilla
+    pdf_bytes = generar_preview_plantilla(plantilla)
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="preview_plantilla_{plantilla.id}.pdf"'
+    return response
+
+
+@login_required
+@require_rol(UsuarioMICI.DIRECTOR)
+@require_http_methods(['POST'])
+def activar_plantilla_view(request, plantilla_id):
+    """Activa una plantilla, desactivando la anterior del mismo tipo (atómico)."""
+    plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id)
+
+    if not plantilla.preview_visto:
+        messages.error(
+            request,
+            'Debes ver el preview antes de activar la plantilla.',
+        )
+        return redirect('tramites:detalle_plantilla', plantilla_id=plantilla.id)
+
+    if plantilla.activa:
+        messages.info(request, 'La plantilla ya está activa.')
+        return redirect('tramites:listar_plantillas')
+
+    tipos_a_desactivar = [plantilla.tipo_aplicable]
+    if plantilla.tipo_aplicable == PlantillaDocumento.AMBOS:
+        tipos_a_desactivar = [PlantillaDocumento.CERTIFICADO, PlantillaDocumento.OFICIO, PlantillaDocumento.AMBOS]
+    elif plantilla.tipo_aplicable in (PlantillaDocumento.CERTIFICADO, PlantillaDocumento.OFICIO):
+        tipos_a_desactivar = [plantilla.tipo_aplicable, PlantillaDocumento.AMBOS]
+
+    with transaction.atomic():
+        desactivadas_ids = list(
+            PlantillaDocumento.objects.filter(
+                activa=True,
+                tipo_aplicable__in=tipos_a_desactivar,
+            ).exclude(pk=plantilla.pk).values_list('pk', flat=True)
+        )
+        PlantillaDocumento.objects.filter(pk__in=desactivadas_ids).update(
+            activa=False, fecha_activacion=None,
+        )
+        plantilla.activa = True
+        plantilla.fecha_activacion = timezone.now()
+        plantilla.save(update_fields=['activa', 'fecha_activacion'])
+
+    registrar_evento(
+        tipo_evento=BitacoraEvento.PLANTILLA_ACTIVADA,
+        actor=request.user,
+        ip_origen=obtener_ip_cliente(request),
+        recurso=plantilla,
+        descripcion=f'Plantilla "{plantilla.nombre}" activada ({plantilla.get_tipo_aplicable_display()})',
+        metadata={
+            'tipo_aplicable': plantilla.tipo_aplicable,
+            'desactivadas_ids': desactivadas_ids,
+        },
+    )
+    messages.success(request, f'Plantilla "{plantilla.nombre}" activada.')
+    return redirect('tramites:listar_plantillas')
+
+
+@login_required
+@require_rol(UsuarioMICI.DIRECTOR)
+@require_http_methods(['POST'])
+def desactivar_plantilla_view(request, plantilla_id):
+    """Desactiva la plantilla activa para volver a la plantilla del sistema."""
+    plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id)
+
+    if not plantilla.activa:
+        messages.info(request, 'La plantilla ya está inactiva.')
+        return redirect('tramites:listar_plantillas')
+
+    plantilla.activa = False
+    plantilla.fecha_activacion = None
+    plantilla.save(update_fields=['activa', 'fecha_activacion'])
+
+    registrar_evento(
+        tipo_evento=BitacoraEvento.PLANTILLA_ACTIVADA,
+        actor=request.user,
+        ip_origen=obtener_ip_cliente(request),
+        recurso=plantilla,
+        descripcion=f'Plantilla "{plantilla.nombre}" desactivada — vuelve a la plantilla del sistema',
+        metadata={'accion': 'desactivar', 'tipo_aplicable': plantilla.tipo_aplicable},
+    )
+    messages.success(
+        request,
+        f'Plantilla "{plantilla.nombre}" desactivada. Los nuevos trámites usarán la plantilla del sistema.',
+    )
+    return redirect('tramites:listar_plantillas')
+
+
+@login_required
+@require_rol(UsuarioMICI.DIRECTOR)
+@require_http_methods(['POST'])
+def eliminar_plantilla_view(request, plantilla_id):
+    """Elimina una plantilla inactiva. Bloqueado para plantillas activas."""
+    plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id)
+
+    if plantilla.activa:
+        messages.error(
+            request,
+            'No se puede eliminar una plantilla activa. Desactívala primero.',
+        )
+        return redirect('tramites:listar_plantillas')
+
+    nombre = plantilla.nombre
+    tipo = plantilla.tipo_aplicable
+    plantilla_id_eliminada = plantilla.pk
+    plantilla.delete()
+    registrar_evento(
+        tipo_evento=BitacoraEvento.PLANTILLA_ELIMINADA,
+        actor=request.user,
+        ip_origen=obtener_ip_cliente(request),
+        recurso=None,
+        descripcion=f'Plantilla "{nombre}" eliminada',
+        metadata={
+            'plantilla_id': plantilla_id_eliminada,
+            'nombre': nombre,
+            'tipo_aplicable': tipo,
+        },
+    )
+    messages.success(request, f'Plantilla "{nombre}" eliminada.')
+    return redirect('tramites:listar_plantillas')

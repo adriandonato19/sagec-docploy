@@ -441,6 +441,7 @@ const editor = new Editor({
         },
     },
     onUpdate: () => {
+        hidden.value = editor.getHTML();
         actualizarSaltoPagina();
         actualizarEstadoBotones();
         actualizarContextoTabla();
@@ -816,6 +817,9 @@ function actualizarSaltoPagina() {
 actualizarSaltoPagina();
 pageWrapper?.querySelectorAll('img').forEach(img => img.addEventListener('load', actualizarSaltoPagina));
 actualizarEstadoBotones();
+
+// Sincronizar valor inicial del hidden para que nunca llegue vacío al servidor
+hidden.value = editor.getHTML();
 </script>
 {% endblock %}
 

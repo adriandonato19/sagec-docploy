@@ -13,7 +13,8 @@
         <!-- PDF Content -->
         <div>
             <iframe
-                src="{% url 'tramites:descargar' id=tramite.uuid %}?inline=1"
+                {% now "U" as cache_bust %}
+                src="{% url 'tramites:descargar' id=tramite.uuid %}?inline=1&v={{ cache_bust }}"
                 style="width: 100%; height: 75vh; border: none;"
                 title="Vista previa del PDF">
             </iframe>

@@ -27,3 +27,4 @@ django-two-factor-auth # Para implementar el 2FA obligatorio de Fiscales y Firma
 django-otp # Para implementar el 2FA obligatorio de Fiscales y Firmantes.
 
 bs4
+python-docx>=1.1.0  # Procesamiento de archivos Word para plantillas de membrete

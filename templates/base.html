@@ -190,6 +190,22 @@
                         </svg>
                         Gestión de Usuarios
                     </a>
+
+                    <a href="{% url 'tramites:configurar_secuencias' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-600 transition-colors {% if request.resolver_match.url_name == 'configurar_secuencias' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'configurar_secuencias' %}text-blue-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14"></path>
+                        </svg>
+                        Secuencias
+                    </a>
+
+                    {% with url_name=request.resolver_match.url_name %}
+                    <a href="{% url 'tramites:listar_plantillas' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-600 transition-colors {% if 'plantilla' in url_name %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 {% if 'plantilla' in url_name %}text-blue-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                        </svg>
+                        Plantillas de Documentos
+                    </a>
+                    {% endwith %}
                     {% endif %}
 
                     <a href="{% url 'identidad:perfil' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-600 transition-colors {% if request.resolver_match.url_name == 'perfil' %}sidebar-active{% endif %}">

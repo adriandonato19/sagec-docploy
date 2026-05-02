@@ -19,7 +19,11 @@ class BitacoraEvento(models.Model):
     FIRMA = 'FIRMA'
     DESCARGA = 'DESCARGA'
     GESTION_USUARIO = 'GESTION_USUARIO'
-    
+    SECUENCIA_AJUSTADA = 'SECUENCIA_AJUSTADA'
+    PLANTILLA_CREADA = 'PLANTILLA_CREADA'
+    PLANTILLA_ACTIVADA = 'PLANTILLA_ACTIVADA'
+    PLANTILLA_ELIMINADA = 'PLANTILLA_ELIMINADA'
+
     TIPOS_EVENTO = [
         (LOGIN, 'Inicio de Sesión'),
         (LOGOUT, 'Cierre de Sesión'),
@@ -31,6 +35,10 @@ class BitacoraEvento(models.Model):
         (FIRMA, 'Firma de Documento'),
         (DESCARGA, 'Descarga de Documento'),
         (GESTION_USUARIO, 'Gestión de Usuario'),
+        (SECUENCIA_AJUSTADA, 'Ajuste de Secuencia'),
+        (PLANTILLA_CREADA, 'Plantilla Creada'),
+        (PLANTILLA_ACTIVADA, 'Plantilla Activada'),
+        (PLANTILLA_ELIMINADA, 'Plantilla Eliminada'),
     ]
     
     # Campos principales

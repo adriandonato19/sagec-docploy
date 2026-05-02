@@ -19,7 +19,7 @@
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for certificado in certificados %}
                 <tr>
-                    <td class="px-6 py-4">{{ certificado.numero_referencia|default:certificado.uuid }}</td>
+                    <td class="px-6 py-4 font-mono text-sm">{{ certificado.numero_referencia_completo }}</td>
                     <td class="px-6 py-4">{% include 'components/badge.html' with estado=certificado.estado %}</td>
                     <td class="px-6 py-4">{{ certificado.fecha_creacion|date:"d/m/Y" }}</td>
                     <td class="px-6 py-4">

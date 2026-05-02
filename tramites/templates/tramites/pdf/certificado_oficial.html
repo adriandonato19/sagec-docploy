@@ -1,4 +1,4 @@
-{% load tramite_filters %}
+{% load tramite_filters l10n %}
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -34,6 +34,16 @@
             background-color: #ffffff;
             overflow: visible;
         }
+
+        .marca-agua {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.12;
+            z-index: -1;
+        }
+        .marca-agua img { display: block; }
 
         .sidebar-text-wrap {
             position: absolute;
@@ -90,13 +100,15 @@
            ============================================================ */
         .footer-image-container {
             position: fixed;
-            left: -1cm;       /* 2.2cm(sidebar) − 3.2cm(margin-left) */
-            bottom: -2.3cm;   /* 0.5cm arriba del borde físico inferior */
-            width: 19.39cm;   /* 21.59cm(ancho página) − 2.2cm(sidebar) */
+            left: 0;
+            right: 0;
+            bottom: -1.5cm;
+            text-align: center;
         }
 
         .footer-img {
             width: 100%;
+            height: auto;
             display: block;
         }
 
@@ -246,14 +258,23 @@
     </div>
 
     <!-- Footer Institucional (se repite en cada página) -->
-    <div class="footer-image-container">
-        <img src="{{ footer_path }}" class="footer-img" alt="Footer Institucional">
+    {% if plantilla.imagen_footer_path %}
+    <div class="footer-image-container"{% if plantilla.imagen_footer_ancho_cm %} style="text-align: center;"{% endif %}>
+        <img src="{{ plantilla.imagen_footer_path }}" class="footer-img" alt="Footer Institucional"{% if plantilla.imagen_footer_ancho_cm %} style="width: 4cm; height: auto; display: inline-block; margin: 0 auto;"{% endif %}>
     </div>
+    {% endif %}
+
+    <!-- Marca de agua (se repite en cada página) -->
+    {% if plantilla.imagen_marca_agua_path %}
+    <div class="marca-agua">
+        <img src="{{ plantilla.imagen_marca_agua_path }}" alt=""{% if plantilla.imagen_marca_agua_ancho_cm and plantilla.imagen_marca_agua_alto_cm %} style="width: {{ plantilla.imagen_marca_agua_ancho_cm|unlocalize }}cm; height: {{ plantilla.imagen_marca_agua_alto_cm|unlocalize }}cm;"{% endif %}>
+    </div>
+    {% endif %}
 
     <!-- Header Institucional (solo primera página, flujo normal) -->
     <div class="header-container">
         <div class="header-left">
-            <img src="{{ logo_path }}" alt="Logo Gobierno Nacional" class="logo-img">
+            <img src="{{ plantilla.imagen_header_path }}" alt="Logo Gobierno Nacional" class="logo-img"{% if plantilla.imagen_header_ancho_cm and plantilla.imagen_header_alto_cm %} style="width: {{ plantilla.imagen_header_ancho_cm|unlocalize }}cm; height: {{ plantilla.imagen_header_alto_cm|unlocalize }}cm;"{% endif %}>
         </div>
     </div>
 

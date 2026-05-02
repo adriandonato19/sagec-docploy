@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ plantilla.nombre }} - Plantilla - SAGEC{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto">
+    <div class="mb-6 flex items-start justify-between gap-4">
+        <div>
+            <nav class="text-sm text-gray-500 mb-2">
+                <a href="{% url 'tramites:listar_plantillas' %}" class="hover:text-blue-600">Plantillas</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-700">{{ plantilla.nombre }}</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                {{ plantilla.nombre }}
+                {% if plantilla.activa %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Activa</span>
+                {% elif plantilla.preview_visto %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">Lista para activar</span>
+                {% else %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">Pendiente de preview</span>
+                {% endif %}
+            </h1>
+            <p class="text-sm text-gray-600 mt-1">
+                Aplica a: <span class="font-semibold">{{ plantilla.get_tipo_aplicable_display }}</span>
+                · Creada por {{ plantilla.creado_por.get_full_name|default:plantilla.creado_por.username }}
+                el {{ plantilla.fecha_creacion|date:"d/m/Y H:i" }}
+            </p>
+        </div>
+
+        <div class="flex flex-col gap-2">
+            {% if plantilla.activa %}
+            <form method="post" action="{% url 'tramites:desactivar_plantilla' plantilla.id %}"
+                  onsubmit="event.preventDefault(); showConfirmModal('¿Desactivar &quot;{{ plantilla.nombre|escapejs }}&quot;? Los nuevos trámites usarán la plantilla del sistema.', this);">
+                {% csrf_token %}
+                <button type="submit"
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap bg-amber-600 hover:bg-amber-700 text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728"></path>
+                    </svg>
+                    Desactivar (volver al sistema)
+                </button>
+            </form>
+            {% else %}
+            <form method="post" action="{% url 'tramites:activar_plantilla' plantilla.id %}"
+                  onsubmit="event.preventDefault(); showConfirmModal('¿Activar la plantilla &quot;{{ plantilla.nombre|escapejs }}&quot;? Esto desactivará otras plantillas del mismo tipo.', this);">
+                {% csrf_token %}
+                <button type="submit"
+                        {% if not plantilla.preview_visto %}disabled{% endif %}
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
+                               {% if plantilla.preview_visto %}bg-green-600 hover:bg-green-700 text-white{% else %}bg-gray-300 text-gray-500 cursor-not-allowed{% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Activar plantilla
+                </button>
+            </form>
+            {% if not plantilla.preview_visto %}
+            <p class="text-xs text-gray-500 text-right">Revisa el preview para habilitar.</p>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Preview PDF -->
+        <div class="lg:col-span-2 bg-white shadow-lg rounded-lg overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <h2 class="text-lg font-semibold text-gray-800">Vista previa</h2>
+                    <span id="preview-status" class="hidden items-center gap-1.5 text-xs font-medium text-blue-600">
+                        <svg class="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                        </svg>
+                        Actualizando…
+                    </span>
+                </div>
+                <button type="button" id="btn-refrescar"
+                        class="text-sm text-blue-600 hover:text-blue-800 font-medium">
+                    Refrescar
+                </button>
+            </div>
+            <div class="bg-gray-100 relative" style="height: 800px;">
+                <iframe id="preview-iframe"
+                        src="{% url 'tramites:preview_plantilla' plantilla.id %}"
+                        class="w-full h-full border-0 transition-opacity duration-150"
+                        title="Preview plantilla"></iframe>
+            </div>
+        </div>
+
+        <!-- Configuración -->
+        <div class="space-y-6">
+            <!-- Imágenes extraídas -->
+            <div class="bg-white shadow-lg rounded-lg overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800">Imágenes extraídas</h2>
+                </div>
+                <div class="p-6 space-y-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Membrete (header)</p>
+                        {% if plantilla.imagen_header %}
+                            <img src="{{ plantilla.imagen_header.url }}" alt="Membrete" class="max-w-full border border-gray-200 rounded">
+                        {% else %}
+                            <p class="text-xs text-gray-400 italic">Sin imagen</p>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Pie de página (footer)</p>
+                        {% if plantilla.imagen_footer %}
+                            <img src="{{ plantilla.imagen_footer.url }}" alt="Pie de página" class="max-w-full border border-gray-200 rounded">
+                        {% else %}
+                            <p class="text-xs text-gray-400 italic">No incluido en el documento</p>
+                        {% endif %}
+                    </div>
+                    {% if plantilla.imagen_marca_agua %}
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-wider text-gray-500 mb-2">Marca de agua</p>
+                        <img src="{{ plantilla.imagen_marca_agua.url }}" alt="Marca de agua" class="max-w-full border border-gray-200 rounded">
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if not plantilla.activa %}
+            <form method="post" action="{% url 'tramites:eliminar_plantilla' plantilla.id %}"
+                  onsubmit="event.preventDefault(); showConfirmModal('¿Eliminar la plantilla &quot;{{ plantilla.nombre|escapejs }}&quot;? Esta acción no se puede deshacer.', this, {variant: 'danger'});"
+                  class="bg-white shadow-lg rounded-lg overflow-hidden">
+                {% csrf_token %}
+                <div class="p-6 flex items-center justify-between gap-4">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-800">Eliminar plantilla</p>
+                        <p class="text-xs text-gray-500">Solo se permite eliminar plantillas inactivas.</p>
+                    </div>
+                    <button type="submit" class="px-4 py-2 border border-red-300 text-red-700 rounded-lg text-sm font-medium hover:bg-red-50">
+                        Eliminar
+                    </button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

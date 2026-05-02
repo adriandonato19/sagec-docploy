@@ -34,6 +34,7 @@ python manage.py createsuperuser    # Create admin user
 
 ## Architecture Patterns
 
+
 - **Scream Architecture:** Directories mirror business domains, not technical layers
 - **Settings split:** `config/settings/base.py` (core), `security.py` (production), `development.py` (dev overrides)
 - **Custom user model:** `identidad.UsuarioMICI` with roles: FISCAL, TRABAJADOR, DIRECTOR

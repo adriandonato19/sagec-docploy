@@ -37,7 +37,7 @@ Fragmento HTML para la tabla de trámites (se actualiza vía HTMX)
                             </div>
                             <div class="ml-4">
                                 <div class="text-sm font-medium text-gray-900">
-                                    {{ tramite.numero_referencia|default:tramite.uuid|truncatechars:20 }}
+                                    {{ tramite.numero_referencia_completo }}
                                 </div>
                                 <div class="text-sm text-gray-500">
                                     {{ tramite.get_tipo_documento_display }}

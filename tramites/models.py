@@ -1,6 +1,8 @@
-from django.db import models
+from django.db import models, transaction
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
+from decimal import Decimal
 from pathlib import Path
 import uuid
 import json
@@ -34,6 +36,7 @@ class Tramite(models.Model):
     numero_carpetilla = models.CharField(max_length=100, blank=True, help_text="Número de carpetilla (solo para oficios)")
     origen_consulta = models.CharField(max_length=100, blank=True, help_text="RUC o número de aviso consultado")
     noconsta_snapshot = models.JSONField(default=list, help_text="Lista de entradas de 'No Consta' escritas manualmente por el fiscal")
+    plantilla_snapshot = models.JSONField(default=dict, blank=True, help_text="Snapshot inmutable de la plantilla de membrete usada al generar el PDF")
 
     # Trazabilidad (Módulo 3 y 4 de la propuesta)
     solicitante = models.ForeignKey('identidad.UsuarioMICI', on_delete=models.PROTECT, related_name='solicitudes') 
@@ -73,7 +76,42 @@ class Tramite(models.Model):
     
     def __str__(self):
         return f"{self.get_tipo_documento_display()} - {self.numero_referencia or str(self.uuid)[:8]}"
-    
+
+    @property
+    def numero_referencia_completo(self):
+        """Devuelve el código oficial del documento con prefijo y año.
+
+        Certificado → MICI-DGCI-AL-N-N°-[N]-AAAA
+        Oficio      → MICI-DGCI-N-N°-[N]-AAAA
+        """
+        if not self.numero_referencia:
+            return str(self.uuid)[:8]
+        anio = self.fecha_creacion.year if self.fecha_creacion else timezone.now().year
+        prefijo = 'MICI-DGCI-AL-N-N°' if self.tipo_documento == 'CERTIFICADO' else 'MICI-DGCI-N-N°'
+        return f'{prefijo}-[{self.numero_referencia}]-{anio}'
+
+    @staticmethod
+    def siguiente_numero_referencia(tipo_documento):
+        """Reserva atómicamente el siguiente número secuencial para (tipo, año actual).
+
+        Usa SecuenciaTramite como fuente de verdad y `select_for_update` dentro de
+        una transacción para evitar que dos creaciones concurrentes obtengan el
+        mismo número.
+        """
+        anio_actual = timezone.now().year
+        with transaction.atomic():
+            secuencia, _ = (
+                SecuenciaTramite.objects
+                .select_for_update()
+                .get_or_create(
+                    tipo_documento=tipo_documento,
+                    anio=anio_actual,
+                )
+            )
+            secuencia.ultimo_numero += 1
+            secuencia.save(update_fields=['ultimo_numero', 'fecha_actualizacion'])
+            return str(secuencia.ultimo_numero)
+
     def enviar(self):
         """Transición: BORRADOR -> PENDIENTE"""
         if self.estado != self.BORRADOR:
@@ -197,3 +235,138 @@ class PreguntaOficio(models.Model):
     @property
     def esta_respondida(self):
         return bool(self.texto_respuesta.strip())
+
+
+class SecuenciaTramite(models.Model):
+    """Contador anual editable para la numeración de oficios y certificados.
+
+    Existe un registro por (tipo_documento, año). `ultimo_numero` guarda el
+    último número emitido; el siguiente trámite usa `ultimo_numero + 1`.
+    El Director puede ajustarlo para continuar desde la secuencia de un
+    sistema anterior.
+    """
+    tipo_documento = models.CharField(
+        max_length=20,
+        choices=[('OFICIO', 'Oficio'), ('CERTIFICADO', 'Certificado')],
+    )
+    anio = models.PositiveIntegerField()
+    ultimo_numero = models.PositiveIntegerField(default=0)
+    actualizado_por = models.ForeignKey(
+        'identidad.UsuarioMICI',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='secuencias_actualizadas',
+    )
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('tipo_documento', 'anio')
+        ordering = ['-anio', 'tipo_documento']
+        verbose_name = 'Secuencia de Trámite'
+        verbose_name_plural = 'Secuencias de Trámites'
+
+    def __str__(self):
+        return f"{self.get_tipo_documento_display()} {self.anio}: {self.ultimo_numero}"
+
+
+class PlantillaDocumento(models.Model):
+    """Plantilla de membrete y footer para PDFs.
+
+    Sustituye las imágenes estáticas (logo_oficial.png, footer_certificado.png)
+    por archivos generados a partir de un .docx subido por el Director.
+    """
+    CERTIFICADO = 'CERTIFICADO'
+    OFICIO = 'OFICIO'
+    AMBOS = 'AMBOS'
+    TIPO_CHOICES = [
+        (CERTIFICADO, 'Solo Certificados'),
+        (OFICIO, 'Solo Oficios'),
+        (AMBOS, 'Certificados y Oficios'),
+    ]
+
+    nombre = models.CharField(max_length=120)
+    tipo_aplicable = models.CharField(max_length=20, choices=TIPO_CHOICES)
+
+    archivo_word = models.FileField(upload_to='plantillas/word/')
+    cuerpo_plantilla_html = models.TextField(
+        blank=True, default='',
+        help_text=(
+            'HTML editable del cuerpo del documento. Soporta placeholders '
+            '[[FECHA_EMISION]], [[DESTINATARIO]], [[LISTA_EMPRESAS]], etc.'
+        ),
+    )
+    imagen_header = models.ImageField(upload_to='plantillas/headers/')
+    imagen_footer = models.ImageField(upload_to='plantillas/footers/', blank=True, null=True)
+    imagen_marca_agua = models.ImageField(
+        upload_to='plantillas/watermarks/', blank=True, null=True,
+    )
+
+    # Tamaño nominal de display tomado del .docx (wp:extent). Se usa en el
+    # template para evitar el reescalado a un alto fijo que distorsiona logos
+    # con relación de aspecto fuera de lo común.
+    imagen_header_ancho_cm = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+    imagen_header_alto_cm = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+    imagen_footer_ancho_cm = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+    imagen_footer_alto_cm = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+    imagen_marca_agua_ancho_cm = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+    imagen_marca_agua_alto_cm = models.DecimalField(
+        max_digits=5, decimal_places=2, null=True, blank=True,
+    )
+
+    margen_superior_cm = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('2.5'),
+        validators=[MinValueValidator(Decimal('0.5')), MaxValueValidator(Decimal('5.0'))],
+    )
+    margen_inferior_cm = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('2.5'),
+        validators=[MinValueValidator(Decimal('0.5')), MaxValueValidator(Decimal('5.0'))],
+    )
+    margen_izquierdo_cm = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('2.5'),
+        validators=[MinValueValidator(Decimal('0.5')), MaxValueValidator(Decimal('5.0'))],
+    )
+    margen_derecho_cm = models.DecimalField(
+        max_digits=4, decimal_places=2, default=Decimal('2.5'),
+        validators=[MinValueValidator(Decimal('0.5')), MaxValueValidator(Decimal('5.0'))],
+    )
+
+    activa = models.BooleanField(default=False)
+    preview_visto = models.BooleanField(default=False)
+    creado_por = models.ForeignKey(
+        'identidad.UsuarioMICI',
+        on_delete=models.PROTECT,
+        related_name='plantillas_creadas',
+    )
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_activacion = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-fecha_creacion']
+        verbose_name = 'Plantilla de Documento'
+        verbose_name_plural = 'Plantillas de Documentos'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tipo_aplicable'],
+                condition=models.Q(activa=True),
+                name='una_plantilla_activa_por_tipo',
+            ),
+        ]
+
+    def __str__(self):
+        estado = 'activa' if self.activa else 'inactiva'
+        return f"{self.nombre} ({self.get_tipo_aplicable_display()}, {estado})"
+
+    def aplica_para(self, tipo_documento):
+        """Indica si esta plantilla aplica al tipo de documento dado."""
+        return self.tipo_aplicable == tipo_documento or self.tipo_aplicable == self.AMBOS
