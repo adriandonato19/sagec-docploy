@@ -410,10 +410,12 @@
             const iconWrap = document.getElementById('confirm-modal-icon');
 
             let _pendingForm = null;
+            let _onCancelCallback = null;
 
             window.showConfirmModal = function (message, formEl, opts) {
                 opts = opts || {};
                 _pendingForm = formEl;
+                _onCancelCallback = opts.onCancel || null;
                 msgEl.textContent = message;
 
                 // variante de color
@@ -429,19 +431,21 @@
                 cancelBtn.focus();
             };
 
-            function closeModal() {
+            function closeModal(cancelled) {
                 modal.classList.add('hidden');
+                if (cancelled && _onCancelCallback) _onCancelCallback();
                 _pendingForm = null;
+                _onCancelCallback = null;
             }
 
-            cancelBtn.addEventListener('click', closeModal);
-            backdrop.addEventListener('click', closeModal);
+            cancelBtn.addEventListener('click', () => closeModal(true));
+            backdrop.addEventListener('click', () => closeModal(true));
             okBtn.addEventListener('click', function () {
                 if (_pendingForm) _pendingForm.submit();
-                closeModal();
+                closeModal(false);
             });
             document.addEventListener('keydown', function (e) {
-                if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+                if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal(true);
             });
         });
     </script>

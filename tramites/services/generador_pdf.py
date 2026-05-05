@@ -127,11 +127,10 @@ def _resolver_plantilla(tramite):
 
     from tramites.models import PlantillaDocumento
 
-    plantilla = (
-        PlantillaDocumento.objects
-        .filter(activa=True, tipo_aplicable__in=[tramite.tipo_documento, PlantillaDocumento.AMBOS])
-        .first()
-    )
+    if tramite.tipo_documento == PlantillaDocumento.CERTIFICADO:
+        plantilla = PlantillaDocumento.objects.filter(activa_certificado=True).first()
+    else:
+        plantilla = PlantillaDocumento.objects.filter(activa_oficio=True).first()
 
     if plantilla and plantilla.imagen_header and Path(plantilla.imagen_header.path).exists():
         snapshot = {

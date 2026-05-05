@@ -55,11 +55,14 @@ class ResolverPlantillaTests(TestCase):
         return Tramite.objects.create(**defaults)
 
     def crear_plantilla(self, tipo=PlantillaDocumento.AMBOS, activa=True, **overrides):
+        activa_cert = activa and tipo in (PlantillaDocumento.CERTIFICADO, PlantillaDocumento.AMBOS)
+        activa_oficio = activa and tipo in (PlantillaDocumento.OFICIO, PlantillaDocumento.AMBOS)
         plantilla = PlantillaDocumento(
             nombre=overrides.pop('nombre', 'Plantilla Test'),
             tipo_aplicable=tipo,
             creado_por=self.director,
-            activa=activa,
+            activa_certificado=overrides.pop('activa_certificado', activa_cert),
+            activa_oficio=overrides.pop('activa_oficio', activa_oficio),
             preview_visto=True,
             margen_superior_cm=overrides.pop('margen_superior_cm', 2.0),
             margen_inferior_cm=overrides.pop('margen_inferior_cm', 2.0),
@@ -83,7 +86,7 @@ class ResolverPlantillaTests(TestCase):
         self.assertEqual(tramite.plantilla_snapshot, {})
 
     def test_plantilla_activa_para_tipo_se_aplica_y_congela_snapshot(self):
-        plantilla = self.crear_plantilla(tipo=PlantillaDocumento.CERTIFICADO)
+        plantilla = self.crear_plantilla(activa_certificado=True, activa_oficio=False)
         tramite = self.crear_tramite(tipo_documento='CERTIFICADO')
 
         resuelta = _resolver_plantilla(tramite)
@@ -95,8 +98,8 @@ class ResolverPlantillaTests(TestCase):
         self.assertEqual(tramite.plantilla_snapshot['margen_izquierdo_cm'], 3.0)
         plantilla.delete()
 
-    def test_plantilla_ambos_aplica_a_oficio_y_certificado(self):
-        plantilla = self.crear_plantilla(tipo=PlantillaDocumento.AMBOS)
+    def test_plantilla_activa_ambos_flags_aplica_a_oficio_y_certificado(self):
+        plantilla = self.crear_plantilla(activa_certificado=True, activa_oficio=True)
 
         cert = self.crear_tramite(tipo_documento='CERTIFICADO', numero_referencia='C-1')
         oficio = self.crear_tramite(tipo_documento='OFICIO', numero_referencia='O-1')
@@ -108,8 +111,8 @@ class ResolverPlantillaTests(TestCase):
         self.assertEqual(oficio_resuelta['margen_izquierdo_cm'], 3.0)
         plantilla.delete()
 
-    def test_plantilla_solo_oficio_no_aplica_a_certificado(self):
-        plantilla = self.crear_plantilla(tipo=PlantillaDocumento.OFICIO)
+    def test_plantilla_sin_flag_cert_no_aplica_a_certificado(self):
+        plantilla = self.crear_plantilla(activa_certificado=False, activa_oficio=True)
         tramite = self.crear_tramite(tipo_documento='CERTIFICADO')
 
         resuelta = _resolver_plantilla(tramite)
@@ -120,7 +123,7 @@ class ResolverPlantillaTests(TestCase):
         plantilla.delete()
 
     def test_snapshot_existente_es_inmutable_aunque_cambie_la_plantilla_activa(self):
-        plantilla = self.crear_plantilla(margen_izquierdo_cm=3.0)
+        plantilla = self.crear_plantilla(activa_certificado=True, margen_izquierdo_cm=3.0)
         tramite = self.crear_tramite(tipo_documento='CERTIFICADO')
 
         # Primera generación congela snapshot con margen 3.0
@@ -146,27 +149,24 @@ class ResolverPlantillaTests(TestCase):
 
         self.assertEqual(resuelta['margen_superior_cm'], 9.99)
 
-    def test_solo_una_plantilla_activa_por_tipo(self):
-        from django.db import transaction
-        from django.db.utils import IntegrityError
+    def test_flags_independientes_cert_no_afecta_oficio(self):
+        """activa_certificado y activa_oficio son independientes."""
+        cert = self.crear_plantilla(activa_certificado=True, activa_oficio=False, nombre='Solo Cert')
+        oficio = self.crear_plantilla(activa_certificado=False, activa_oficio=True, nombre='Solo Oficio')
 
-        primera = self.crear_plantilla(
-            tipo=PlantillaDocumento.CERTIFICADO,
-            nombre='Primera',
-        )
-        # Crear una segunda activa del MISMO tipo debe violar el constraint.
-        # Se envuelve en savepoint para que el rollback parcial no rompa la
-        # transacción del test.
-        with self.assertRaises(IntegrityError):
-            with transaction.atomic():
-                self.crear_plantilla(
-                    tipo=PlantillaDocumento.CERTIFICADO,
-                    nombre='Segunda',
-                )
-        primera.delete()
+        tramite_cert = self.crear_tramite(tipo_documento='CERTIFICADO', numero_referencia='CF-1')
+        tramite_oficio = self.crear_tramite(tipo_documento='OFICIO', numero_referencia='OF-1')
 
-    def test_plantilla_inactiva_no_se_aplica(self):
-        plantilla = self.crear_plantilla(activa=False)
+        cert_resuelta = _resolver_plantilla(tramite_cert)
+        oficio_resuelta = _resolver_plantilla(tramite_oficio)
+
+        self.assertEqual(cert_resuelta['margen_izquierdo_cm'], 3.0)
+        self.assertEqual(oficio_resuelta['margen_izquierdo_cm'], 3.0)
+        cert.delete()
+        oficio.delete()
+
+    def test_plantilla_sin_flags_no_se_aplica(self):
+        plantilla = self.crear_plantilla(activa_certificado=False, activa_oficio=False)
         tramite = self.crear_tramite(tipo_documento='CERTIFICADO')
 
         resuelta = _resolver_plantilla(tramite)

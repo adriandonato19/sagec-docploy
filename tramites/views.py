@@ -5,7 +5,7 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.clickjacking import xframe_options_sameorigin
-from django.http import HttpResponse, Http404
+from django.http import HttpResponse, HttpResponseBadRequest, Http404
 from django.utils import timezone
 from django.conf import settings
 from pathlib import Path
@@ -1025,11 +1025,11 @@ def listar_plantillas_view(request):
     plantillas = PlantillaDocumento.objects.select_related('creado_por').all()
 
     activa_certificado = next(
-        (p for p in plantillas if p.activa and p.tipo_aplicable in (PlantillaDocumento.CERTIFICADO, PlantillaDocumento.AMBOS)),
+        (p for p in plantillas if p.activa_certificado),
         None,
     )
     activa_oficio = next(
-        (p for p in plantillas if p.activa and p.tipo_aplicable in (PlantillaDocumento.OFICIO, PlantillaDocumento.AMBOS)),
+        (p for p in plantillas if p.activa_oficio),
         None,
     )
 
@@ -1058,7 +1058,6 @@ def subir_plantilla_view(request):
             else:
                 plantilla = form.save(commit=False)
                 plantilla.creado_por = request.user
-                plantilla.activa = False
                 plantilla.preview_visto = False
                 plantilla.margen_superior_cm = datos['margen_superior_cm']
                 plantilla.margen_inferior_cm = datos['margen_inferior_cm']
@@ -1151,10 +1150,15 @@ def detalle_plantilla_view(request, plantilla_id):
         (form['margen_derecho_cm'], 'Derecho'),
     ]
 
+    activa_certificado = PlantillaDocumento.objects.filter(activa_certificado=True).exclude(pk=plantilla.pk).first()
+    activa_oficio = PlantillaDocumento.objects.filter(activa_oficio=True).exclude(pk=plantilla.pk).first()
+
     return render(request, 'tramites/plantillas/detalle.html', {
         'plantilla': plantilla,
         'form': form,
         'margenes_campos': margenes_campos,
+        'activa_certificado': activa_certificado,
+        'activa_oficio': activa_oficio,
     })
 
 
@@ -1175,83 +1179,64 @@ def preview_plantilla_view(request, plantilla_id):
 @login_required
 @require_rol(UsuarioMICI.DIRECTOR)
 @require_http_methods(['POST'])
-def activar_plantilla_view(request, plantilla_id):
-    """Activa una plantilla, desactivando la anterior del mismo tipo (atómico)."""
-    plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id)
+def toggle_activacion_plantilla_view(request, plantilla_id, tipo):
+    """Activa o desactiva una plantilla para un tipo específico (CERTIFICADO|OFICIO)."""
+    if tipo not in (PlantillaDocumento.CERTIFICADO, PlantillaDocumento.OFICIO):
+        return HttpResponseBadRequest()
 
-    if not plantilla.preview_visto:
-        messages.error(
+    plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id)
+    accion = request.POST.get('accion')
+    campo = 'activa_certificado' if tipo == PlantillaDocumento.CERTIFICADO else 'activa_oficio'
+    tipo_label = 'Certificados' if tipo == PlantillaDocumento.CERTIFICADO else 'Oficios'
+
+    if accion == 'activar':
+        if not plantilla.preview_visto:
+            messages.error(request, 'Debes ver el preview antes de activar la plantilla.')
+            return redirect('tramites:listar_plantillas')
+        with transaction.atomic():
+            desactivadas_ids = list(
+                PlantillaDocumento.objects.filter(**{campo: True})
+                .exclude(pk=plantilla.pk)
+                .values_list('pk', flat=True)
+            )
+            PlantillaDocumento.objects.filter(pk__in=desactivadas_ids).update(
+                **{campo: False},
+            )
+            setattr(plantilla, campo, True)
+            plantilla.fecha_activacion = timezone.now()
+            plantilla.save(update_fields=[campo, 'fecha_activacion'])
+        registrar_evento(
+            tipo_evento=BitacoraEvento.PLANTILLA_ACTIVADA,
+            actor=request.user,
+            ip_origen=obtener_ip_cliente(request),
+            recurso=plantilla,
+            descripcion=f'Plantilla "{plantilla.nombre}" activada para {tipo_label}',
+            metadata={
+                'tipo': tipo,
+                'accion': 'activar',
+                'desactivadas_ids': desactivadas_ids,
+            },
+        )
+        messages.success(request, f'Plantilla "{plantilla.nombre}" activada para {tipo_label}.')
+
+    elif accion == 'desactivar':
+        setattr(plantilla, campo, False)
+        plantilla.save(update_fields=[campo])
+        registrar_evento(
+            tipo_evento=BitacoraEvento.PLANTILLA_ACTIVADA,
+            actor=request.user,
+            ip_origen=obtener_ip_cliente(request),
+            recurso=plantilla,
+            descripcion=f'Plantilla "{plantilla.nombre}" desactivada para {tipo_label}',
+            metadata={'tipo': tipo, 'accion': 'desactivar'},
+        )
+        messages.success(
             request,
-            'Debes ver el preview antes de activar la plantilla.',
+            f'Plantilla "{plantilla.nombre}" desactivada para {tipo_label}. Los nuevos trámites usarán la plantilla del sistema.',
         )
-        return redirect('tramites:detalle_plantilla', plantilla_id=plantilla.id)
+    else:
+        return HttpResponseBadRequest()
 
-    if plantilla.activa:
-        messages.info(request, 'La plantilla ya está activa.')
-        return redirect('tramites:listar_plantillas')
-
-    tipos_a_desactivar = [plantilla.tipo_aplicable]
-    if plantilla.tipo_aplicable == PlantillaDocumento.AMBOS:
-        tipos_a_desactivar = [PlantillaDocumento.CERTIFICADO, PlantillaDocumento.OFICIO, PlantillaDocumento.AMBOS]
-    elif plantilla.tipo_aplicable in (PlantillaDocumento.CERTIFICADO, PlantillaDocumento.OFICIO):
-        tipos_a_desactivar = [plantilla.tipo_aplicable, PlantillaDocumento.AMBOS]
-
-    with transaction.atomic():
-        desactivadas_ids = list(
-            PlantillaDocumento.objects.filter(
-                activa=True,
-                tipo_aplicable__in=tipos_a_desactivar,
-            ).exclude(pk=plantilla.pk).values_list('pk', flat=True)
-        )
-        PlantillaDocumento.objects.filter(pk__in=desactivadas_ids).update(
-            activa=False, fecha_activacion=None,
-        )
-        plantilla.activa = True
-        plantilla.fecha_activacion = timezone.now()
-        plantilla.save(update_fields=['activa', 'fecha_activacion'])
-
-    registrar_evento(
-        tipo_evento=BitacoraEvento.PLANTILLA_ACTIVADA,
-        actor=request.user,
-        ip_origen=obtener_ip_cliente(request),
-        recurso=plantilla,
-        descripcion=f'Plantilla "{plantilla.nombre}" activada ({plantilla.get_tipo_aplicable_display()})',
-        metadata={
-            'tipo_aplicable': plantilla.tipo_aplicable,
-            'desactivadas_ids': desactivadas_ids,
-        },
-    )
-    messages.success(request, f'Plantilla "{plantilla.nombre}" activada.')
-    return redirect('tramites:listar_plantillas')
-
-
-@login_required
-@require_rol(UsuarioMICI.DIRECTOR)
-@require_http_methods(['POST'])
-def desactivar_plantilla_view(request, plantilla_id):
-    """Desactiva la plantilla activa para volver a la plantilla del sistema."""
-    plantilla = get_object_or_404(PlantillaDocumento, pk=plantilla_id)
-
-    if not plantilla.activa:
-        messages.info(request, 'La plantilla ya está inactiva.')
-        return redirect('tramites:listar_plantillas')
-
-    plantilla.activa = False
-    plantilla.fecha_activacion = None
-    plantilla.save(update_fields=['activa', 'fecha_activacion'])
-
-    registrar_evento(
-        tipo_evento=BitacoraEvento.PLANTILLA_ACTIVADA,
-        actor=request.user,
-        ip_origen=obtener_ip_cliente(request),
-        recurso=plantilla,
-        descripcion=f'Plantilla "{plantilla.nombre}" desactivada — vuelve a la plantilla del sistema',
-        metadata={'accion': 'desactivar', 'tipo_aplicable': plantilla.tipo_aplicable},
-    )
-    messages.success(
-        request,
-        f'Plantilla "{plantilla.nombre}" desactivada. Los nuevos trámites usarán la plantilla del sistema.',
-    )
     return redirect('tramites:listar_plantillas')
 
 

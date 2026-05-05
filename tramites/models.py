@@ -341,7 +341,8 @@ class PlantillaDocumento(models.Model):
         validators=[MinValueValidator(Decimal('0.5')), MaxValueValidator(Decimal('5.0'))],
     )
 
-    activa = models.BooleanField(default=False)
+    activa_certificado = models.BooleanField(default=False)
+    activa_oficio = models.BooleanField(default=False)
     preview_visto = models.BooleanField(default=False)
     creado_por = models.ForeignKey(
         'identidad.UsuarioMICI',
@@ -355,18 +356,25 @@ class PlantillaDocumento(models.Model):
         ordering = ['-fecha_creacion']
         verbose_name = 'Plantilla de Documento'
         verbose_name_plural = 'Plantillas de Documentos'
-        constraints = [
-            models.UniqueConstraint(
-                fields=['tipo_aplicable'],
-                condition=models.Q(activa=True),
-                name='una_plantilla_activa_por_tipo',
-            ),
-        ]
+        constraints = []
+
+    @property
+    def activa(self):
+        return self.activa_certificado or self.activa_oficio
 
     def __str__(self):
-        estado = 'activa' if self.activa else 'inactiva'
-        return f"{self.nombre} ({self.get_tipo_aplicable_display()}, {estado})"
+        partes = []
+        if self.activa_certificado:
+            partes.append('certificado')
+        if self.activa_oficio:
+            partes.append('oficio')
+        estado = f"activa para {', '.join(partes)}" if partes else 'inactiva'
+        return f"{self.nombre} ({estado})"
 
     def aplica_para(self, tipo_documento):
-        """Indica si esta plantilla aplica al tipo de documento dado."""
-        return self.tipo_aplicable == tipo_documento or self.tipo_aplicable == self.AMBOS
+        """Indica si esta plantilla está activa para el tipo de documento dado."""
+        if tipo_documento == self.CERTIFICADO:
+            return self.activa_certificado
+        if tipo_documento == self.OFICIO:
+            return self.activa_oficio
+        return False

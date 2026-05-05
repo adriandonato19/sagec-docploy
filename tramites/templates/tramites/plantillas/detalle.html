@@ -13,8 +13,12 @@
             </nav>
             <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-3">
                 {{ plantilla.nombre }}
-                {% if plantilla.activa %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Activa</span>
+                {% if plantilla.activa_certificado and plantilla.activa_oficio %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Activa (cert. y oficio)</span>
+                {% elif plantilla.activa_certificado %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Activa para Certificados</span>
+                {% elif plantilla.activa_oficio %}
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">Activa para Oficios</span>
                 {% elif plantilla.preview_visto %}
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">Lista para activar</span>
                 {% else %}
@@ -29,22 +33,27 @@
         </div>
 
         <div class="flex flex-col gap-2">
-            {% if plantilla.activa %}
-            <form method="post" action="{% url 'tramites:desactivar_plantilla' plantilla.id %}"
-                  onsubmit="event.preventDefault(); showConfirmModal('¿Desactivar &quot;{{ plantilla.nombre|escapejs }}&quot;? Los nuevos trámites usarán la plantilla del sistema.', this);">
+            {# ── Botón Certificado ───────────────────────────────────────── #}
+            {% if plantilla.activa_certificado %}
+            <form method="post"
+                  action="{% url 'tramites:toggle_activacion_plantilla' plantilla.id 'CERTIFICADO' %}"
+                  onsubmit="event.preventDefault(); showConfirmModal('¿Desactivar &quot;{{ plantilla.nombre|escapejs }}&quot; para Certificados? Los nuevos trámites usarán la plantilla del sistema.', this);">
                 {% csrf_token %}
+                <input type="hidden" name="accion" value="desactivar">
                 <button type="submit"
                         class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap bg-amber-600 hover:bg-amber-700 text-white">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728"></path>
                     </svg>
-                    Desactivar (volver al sistema)
+                    Desactivar para Certificados
                 </button>
             </form>
             {% else %}
-            <form method="post" action="{% url 'tramites:activar_plantilla' plantilla.id %}"
-                  onsubmit="event.preventDefault(); showConfirmModal('¿Activar la plantilla &quot;{{ plantilla.nombre|escapejs }}&quot;? Esto desactivará otras plantillas del mismo tipo.', this);">
+            <form method="post"
+                  action="{% url 'tramites:toggle_activacion_plantilla' plantilla.id 'CERTIFICADO' %}"
+                  onsubmit="event.preventDefault(); showConfirmModal('{% if activa_certificado %}Ya hay &quot;{{ activa_certificado.nombre|escapejs }}&quot; activa para Certificados. ¿Cambiarla por &quot;{{ plantilla.nombre|escapejs }}&quot;?{% else %}¿Activar &quot;{{ plantilla.nombre|escapejs }}&quot; para Certificados?{% endif %}', this);">
                 {% csrf_token %}
+                <input type="hidden" name="accion" value="activar">
                 <button type="submit"
                         {% if not plantilla.preview_visto %}disabled{% endif %}
                         class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
@@ -52,12 +61,46 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                     </svg>
-                    Activar plantilla
+                    Activar para Certificados
                 </button>
             </form>
+            {% endif %}
+
+            {# ── Botón Oficio ────────────────────────────────────────────── #}
+            {% if plantilla.activa_oficio %}
+            <form method="post"
+                  action="{% url 'tramites:toggle_activacion_plantilla' plantilla.id 'OFICIO' %}"
+                  onsubmit="event.preventDefault(); showConfirmModal('¿Desactivar &quot;{{ plantilla.nombre|escapejs }}&quot; para Oficios? Los nuevos trámites usarán la plantilla del sistema.', this);">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="desactivar">
+                <button type="submit"
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap bg-amber-600 hover:bg-amber-700 text-white">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728"></path>
+                    </svg>
+                    Desactivar para Oficios
+                </button>
+            </form>
+            {% else %}
+            <form method="post"
+                  action="{% url 'tramites:toggle_activacion_plantilla' plantilla.id 'OFICIO' %}"
+                  onsubmit="event.preventDefault(); showConfirmModal('{% if activa_oficio %}Ya hay &quot;{{ activa_oficio.nombre|escapejs }}&quot; activa para Oficios. ¿Cambiarla por &quot;{{ plantilla.nombre|escapejs }}&quot;?{% else %}¿Activar &quot;{{ plantilla.nombre|escapejs }}&quot; para Oficios?{% endif %}', this);">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="activar">
+                <button type="submit"
+                        {% if not plantilla.preview_visto %}disabled{% endif %}
+                        class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
+                               {% if plantilla.preview_visto %}bg-green-600 hover:bg-green-700 text-white{% else %}bg-gray-300 text-gray-500 cursor-not-allowed{% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Activar para Oficios
+                </button>
+            </form>
+            {% endif %}
+
             {% if not plantilla.preview_visto %}
             <p class="text-xs text-gray-500 text-right">Revisa el preview para habilitar.</p>
-            {% endif %}
             {% endif %}
         </div>
     </div>

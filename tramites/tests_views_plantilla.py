@@ -99,7 +99,8 @@ class PlantillaCRUDIntegrationTests(TestCase):
             nombre=overrides.pop('nombre', 'Plantilla X'),
             tipo_aplicable=overrides.pop('tipo_aplicable', PlantillaDocumento.CERTIFICADO),
             creado_por=self.director,
-            activa=overrides.pop('activa', False),
+            activa_certificado=overrides.pop('activa_certificado', False),
+            activa_oficio=overrides.pop('activa_oficio', False),
             preview_visto=overrides.pop('preview_visto', False),
             margen_superior_cm=2.0, margen_inferior_cm=2.0,
             margen_izquierdo_cm=3.0, margen_derecho_cm=2.0,
@@ -141,43 +142,86 @@ class PlantillaCRUDIntegrationTests(TestCase):
         plantilla.refresh_from_db()
         self.assertTrue(plantilla.preview_visto)
 
-    def test_activar_sin_preview_visto_falla(self):
+    def test_toggle_activar_sin_preview_visto_falla(self):
         plantilla = self.crear_plantilla_directa(preview_visto=False)
         response = self.client.post(
-            reverse('tramites:activar_plantilla', args=[plantilla.id])
+            reverse('tramites:toggle_activacion_plantilla', args=[plantilla.id, 'CERTIFICADO']),
+            data={'accion': 'activar'},
         )
         self.assertEqual(response.status_code, 302)
         plantilla.refresh_from_db()
-        self.assertFalse(plantilla.activa)
+        self.assertFalse(plantilla.activa_certificado)
         self.assertFalse(
             BitacoraEvento.objects.filter(tipo_evento=BitacoraEvento.PLANTILLA_ACTIVADA).exists()
         )
 
-    def test_activar_desactiva_la_anterior_y_registra_bitacora(self):
+    def test_toggle_activar_cert_desactiva_anterior_y_registra_bitacora(self):
         anterior = self.crear_plantilla_directa(
-            nombre='Anterior', preview_visto=True, activa=True,
+            nombre='Anterior', preview_visto=True, activa_certificado=True,
         )
         nueva = self.crear_plantilla_directa(
-            nombre='Nueva', preview_visto=True, activa=False,
+            nombre='Nueva', preview_visto=True,
         )
 
         response = self.client.post(
-            reverse('tramites:activar_plantilla', args=[nueva.id])
+            reverse('tramites:toggle_activacion_plantilla', args=[nueva.id, 'CERTIFICADO']),
+            data={'accion': 'activar'},
         )
         self.assertEqual(response.status_code, 302)
 
         anterior.refresh_from_db()
         nueva.refresh_from_db()
-        self.assertFalse(anterior.activa)
-        self.assertTrue(nueva.activa)
+        self.assertFalse(anterior.activa_certificado)
+        self.assertTrue(nueva.activa_certificado)
         self.assertIsNotNone(nueva.fecha_activacion)
 
         evento = BitacoraEvento.objects.get(tipo_evento=BitacoraEvento.PLANTILLA_ACTIVADA)
         self.assertEqual(evento.object_id, nueva.pk)
         self.assertIn(anterior.pk, evento.metadata.get('desactivadas_ids', []))
 
+    def test_toggle_activar_oficio_no_afecta_certificado(self):
+        cert_activa = self.crear_plantilla_directa(
+            nombre='Cert Activa', preview_visto=True, activa_certificado=True,
+        )
+        nueva_oficio = self.crear_plantilla_directa(
+            nombre='Nueva Oficio', preview_visto=True,
+        )
+
+        response = self.client.post(
+            reverse('tramites:toggle_activacion_plantilla', args=[nueva_oficio.id, 'OFICIO']),
+            data={'accion': 'activar'},
+        )
+        self.assertEqual(response.status_code, 302)
+
+        cert_activa.refresh_from_db()
+        nueva_oficio.refresh_from_db()
+        self.assertTrue(cert_activa.activa_certificado)  # no fue tocada
+        self.assertTrue(nueva_oficio.activa_oficio)
+
+    def test_toggle_desactivar_deja_flag_en_false(self):
+        plantilla = self.crear_plantilla_directa(
+            nombre='Activa Cert', preview_visto=True, activa_certificado=True,
+        )
+
+        response = self.client.post(
+            reverse('tramites:toggle_activacion_plantilla', args=[plantilla.id, 'CERTIFICADO']),
+            data={'accion': 'desactivar'},
+        )
+        self.assertEqual(response.status_code, 302)
+
+        plantilla.refresh_from_db()
+        self.assertFalse(plantilla.activa_certificado)
+
+    def test_toggle_tipo_invalido_retorna_400(self):
+        plantilla = self.crear_plantilla_directa(preview_visto=True)
+        response = self.client.post(
+            reverse('tramites:toggle_activacion_plantilla', args=[plantilla.id, 'AMBOS']),
+            data={'accion': 'activar'},
+        )
+        self.assertEqual(response.status_code, 400)
+
     def test_eliminar_activa_bloqueado(self):
-        plantilla = self.crear_plantilla_directa(preview_visto=True, activa=True)
+        plantilla = self.crear_plantilla_directa(preview_visto=True, activa_certificado=True)
         response = self.client.post(
             reverse('tramites:eliminar_plantilla', args=[plantilla.id])
         )
