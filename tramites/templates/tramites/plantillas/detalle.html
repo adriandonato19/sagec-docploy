@@ -26,8 +26,7 @@
                 {% endif %}
             </h1>
             <p class="text-sm text-gray-600 mt-1">
-                Aplica a: <span class="font-semibold">{{ plantilla.get_tipo_aplicable_display }}</span>
-                · Creada por {{ plantilla.creado_por.get_full_name|default:plantilla.creado_por.username }}
+                Creada por {{ plantilla.creado_por.get_full_name|default:plantilla.creado_por.username }}
                 el {{ plantilla.fecha_creacion|date:"d/m/Y H:i" }}
             </p>
         </div>
