@@ -1,0 +1,146 @@
+{% load tramite_filters %}
+<div class="aviso-page">
+    <!-- Logo centrado arriba -->
+    <div class="aviso-logo-top">
+        <img src="{{ logo_path }}" alt="Escudo Nacional">
+    </div>
+
+    <!-- Banner oscuro -->
+    <div class="aviso-banner">
+        MINISTERIO DE<br>COMERCIO E INDUSTRIAS
+    </div>
+
+    <!-- Título grande -->
+    <div class="aviso-titulo-grande">AVISO DE OPERACIÓN</div>
+
+    <!-- Recuadro principal -->
+    <div class="aviso-recuadro">
+        <!-- Sub-header institucional (dentro del recuadro) -->
+        <div class="aviso-subheader">
+            REPÚBLICA DE PANAMÁ<br>
+            MINISTERIO DE COMERCIO E INDUSTRIAS<br>
+            DIRECCIÓN GENERAL DE COMERCIO INTERIOR
+        </div>
+
+        <!-- Cabeceras de columna con fondo gris -->
+        <div class="aviso-columnas-header">
+            <div class="aviso-col-izq-header">Aviso de Operación Nº</div>
+            <div class="aviso-col-der-header">Expedido a favor de</div>
+        </div>
+
+        <!-- Contenido bajo las cabeceras -->
+        <div class="aviso-columnas-contenido">
+            <div class="aviso-col-izq">
+                {% if emp.representante_legal %}
+                <div class="aviso-campo">
+                    <span class="aviso-label">Datos del Representante Legal</span>
+                </div>
+                {% if emp.cedula_representante %}
+                <div class="aviso-campo">
+                    <span class="aviso-valor">{{ emp.cedula_representante }}</span>
+                </div>
+                {% endif %}
+                <div class="aviso-campo">
+                    <span class="aviso-valor">{{ emp.representante_legal|upper }}</span>
+                </div>
+                {% endif %}
+                <div class="aviso-campo" style="margin-top: 0.2cm;">
+                    <span class="aviso-label">Capital Invertido</span><br>
+                    <span class="aviso-valor">{{ emp.capital_invertido|formato_balboas }}</span>
+                </div>
+            </div>
+            <div class="aviso-col-der">
+                <div class="aviso-campo">
+                    <span class="aviso-valor" style="font-weight: bold;">{{ emp.razon_social|default:emp.razon_comercial|default:"—" }}</span>
+                </div>
+                <div class="aviso-campo" style="margin-top: 0.3cm;">
+                    <span class="aviso-valor">{{ emp.ruc_completo|default:emp.ruc|default:"—" }}{% if emp.dv and not emp.ruc_completo %} DV {{ emp.dv }}{% endif %}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nombre completo full-width -->
+        <div class="aviso-nombre-completo">
+            {% if emp.representante_legal %}{{ emp.representante_legal|upper }}{% else %}{{ emp.razon_social|default:emp.razon_comercial|default:"—"|upper }}{% endif %}
+        </div>
+
+        <!-- Párrafo declarativo -->
+        <div class="aviso-declaracion">
+            {% if emp.representante_legal %}
+            Yo, <strong>{{ emp.representante_legal }}</strong>{% if emp.cedula_representante %}, con cédula de identidad personal {{ emp.cedula_representante }}{% endif %}{% if emp.nacionalidad %}, nacionalidad {{ emp.nacionalidad }}{% endif %}, con domicilio en {% if emp.provincia %}Provincia de {{ emp.provincia|upper }}{% endif %}{% if emp.distrito %}, Distrito de {{ emp.distrito|upper }}{% endif %}{% if emp.corregimiento %}, Corregimiento {{ emp.corregimiento|upper }}{% endif %}{% if emp.urbanizacion %}, Urbanización {{ emp.urbanizacion|upper }}{% endif %}{% if emp.edificio %}, edificio: {{ emp.edificio|upper }}{% endif %}{% if emp.apartamento %}, departamento: {{ emp.apartamento }}{% endif %}{% if emp.telefono %}, Teléfonos {{ emp.telefono }}{% endif %}.
+            {% else %}
+            Empresa: <strong>{{ emp.razon_social|default:emp.razon_comercial|default:"—" }}</strong>{% if emp.ubicacion_completa %}, con dirección en <strong>{{ emp.ubicacion_completa }}</strong>{% endif %}.
+            {% endif %}
+        </div>
+
+        <!-- Declaro lo siguiente: Ubicación -->
+        <div class="aviso-seccion">
+            <div class="aviso-seccion-titulo">Declaro lo siguiente:</div>
+            <div class="aviso-seccion-contenido">
+                El establecimiento denominado <strong>{{ emp.razon_social|default:emp.razon_comercial|default:"—"|upper }}</strong>, está ubicado en la Provincia de {{ emp.provincia|default:"—"|upper }}, Distrito de {{ emp.distrito|default:"—"|upper }}{% if emp.corregimiento %}, Corregimiento de {{ emp.corregimiento|upper }}{% endif %}{% if emp.calle %}, Calle {{ emp.calle|upper }}{% endif %}{% if emp.edificio %}, edificio: {{ emp.edificio|upper }}{% endif %}{% if emp.apartamento %}, departamento: {{ emp.apartamento }}{% endif %}{% if emp.urbanizacion %}, Urbanización {{ emp.urbanizacion|upper }}{% endif %}{% if emp.fecha_inicio_operaciones_formateada or emp.fecha_inicio_operaciones %} ,Inicio de operaciones: {{ emp.fecha_inicio_operaciones_formateada|default:emp.fecha_inicio_operaciones }}{% endif %}
+            </div>
+        </div>
+
+        <!-- Actividad comercial -->
+        <div class="aviso-seccion">
+            <div class="aviso-seccion-titulo">Se dedicará a las actividades de:</div>
+            <div class="aviso-seccion-contenido">
+                {% if emp.actividades_comerciales_ciiu %}
+                    {% for act in emp.actividades_comerciales_ciiu %}
+                    <div class="aviso-actividad">
+                        {% if act.codigo %}<span class="aviso-ciiu">({{ act.codigo }})-</span>{% endif %}{{ act.descripcion|default:act.actividad|default:"" }}
+                    </div>
+                    {% endfor %}
+                {% elif emp.actividad_comercial %}
+                    <div class="aviso-actividad">{{ emp.actividad_comercial }}</div>
+                {% else %}
+                    <div class="aviso-actividad">—</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Cláusula de Responsabilidad -->
+        <div class="aviso-clausula">
+            <span class="aviso-clausula-titulo">Cláusula de Responsabilidad:</span>
+            <p>
+                En caso de que este Aviso de Operación haya sido procesado por una persona distinta al Representante Legal o administrador del establecimiento, dicha persona será solidariamente responsable de la información suministrada, por lo que deberá firmar el Aviso de Operación en conjunto con el Representante Legal o administrador del establecimiento comercial según sea el caso. Declaro bajo la gravedad de juramento que toda la información por mi afirmada al sistema PanamáEmprende en el presente proceso de Aviso de Operación, son ciertos.
+            </p>
+        </div>
+
+        <!-- Notas -->
+        <div class="aviso-notas">
+            <p>
+                Este Aviso de Operación, deberá ser impreso, inmediantamente firmado por los declarantes que aparecen en la parte inferior del mismo. Además, debe mantenerse en el establecimiento donde se ejerce la(s) actividades(s) comerciale(s) o industriale(s) y mostrarlo en caso de ser solicitado por las Autoridades Públicas y Competentes, en el ejercicio de su función fiscalizadora.
+            </p>
+            <p>
+                Tome nota que las zonificaciones comerciales deben ser previamente validadas con el Municipio respectivo. Lo declarado en este documento, será verificado por el MICI y entes competentes, en caso de ser incompatible o incongruente se ordenará la suspensión temporal o definitiva del Aviso de Operación. Adicionalmente se podrá ordenar el cierre del local y la aplicación de la multa correspondiente según la infracción cometida.
+            </p>
+            <div class="aviso-fundamento">
+                Fundamento legal: Ley 5 de 2007 y ley 2 de 2013.
+            </div>
+            <div class="aviso-panama-emprende">
+                PanamáEmprende ha avisado de la apertura del negocio a la Caja de Seguro Social y al Municipio respectivo.
+            </div>
+        </div>
+
+        <!-- Firmas -->
+        <div class="aviso-firmas">
+            <div class="aviso-firma-col">
+                <div class="aviso-firma-linea"></div>
+                <div class="aviso-firma-nombre">{{ emp.representante_legal|default:"" }}</div>
+                {% if emp.cedula_representante %}
+                <div class="aviso-firma-cip">C.I.P. {{ emp.cedula_representante }}</div>
+                {% endif %}
+                <div class="aviso-firma-rol">Firma del Declarante (Tramitador)</div>
+            </div>
+            <div class="aviso-firma-col">
+                <div class="aviso-firma-linea"></div>
+                <div class="aviso-firma-nombre">{{ emp.representante_legal|default:"" }}</div>
+                {% if emp.cedula_representante %}
+                <div class="aviso-firma-cip">C.I.P. {{ emp.cedula_representante }}</div>
+                {% endif %}
+                <div class="aviso-firma-rol">Firma del Dueño del Negocio</div>
+            </div>
+        </div>
+    </div>
+</div>

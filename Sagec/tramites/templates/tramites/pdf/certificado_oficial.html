@@ -1,0 +1,354 @@
+{% load tramite_filters %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Certificado Oficial - {{ tramite.numero_referencia }}</title>
+    <style>
+        @page {
+            size: letter;
+            /* top  right  bottom  left(sidebar 2.2cm + gap 1cm) */
+            margin: 1.8cm 1.8cm 2.8cm 3.2cm;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10pt;
+            line-height: 1.4;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ============================================================
+           SIDEBAR — position:fixed = se repite en CADA página
+           Coordenadas relativas al page area (dentro de @page margins).
+           Offsets negativos para posicionar en el margen de página.
+           ============================================================ */
+        .verification-sidebar {
+            position: fixed;
+            left: -3.2cm;   /* page-area left − margin-left = borde izquierdo de página */
+            top: -1.8cm;    /* page-area top  − margin-top  = borde superior de página */
+            width: 2.2cm;
+            height: 27.94cm; /* alto total de página letter */
+            background-color: #ffffff;
+            overflow: visible;
+        }
+
+        .sidebar-text-wrap {
+            position: absolute;
+            left: 1.1cm;
+            bottom: 2.4cm;
+            transform: rotate(-90deg);
+            transform-origin: left bottom;
+            width: 20cm;
+        }
+
+        .sidebar-text {
+            font-size: 7.5pt;
+            color: #000;
+            line-height: 1.15;
+            text-align: left;
+            white-space: nowrap;
+            overflow-wrap: normal;
+            word-break: normal;
+            hyphens: none;
+        }
+
+        .verification-label {
+            font-weight: bold;
+        }
+
+        .verification-code {
+            font-family: monospace;
+            font-size: 7.5pt;
+            white-space: nowrap;
+            overflow-wrap: normal;
+            word-break: normal;
+            hyphens: none;
+            display: inline-block;
+        }
+
+        .qr-container-sidebar {
+            position: absolute;
+            left: 0.3cm;
+            bottom: 0.5cm;
+            width: 1.6cm;
+            height: 1.6cm;
+            z-index: 20;
+        }
+
+        .qr-img {
+            width: 100%;
+            height: auto;
+        }
+
+        /* ============================================================
+           FOOTER — position:fixed = se repite en CADA página
+           bottom negativo para llegar al margen inferior de página.
+           left: -1cm = 2.2cm desde borde izquierdo (después del sidebar).
+           ============================================================ */
+        .footer-image-container {
+            position: fixed;
+            left: -1cm;       /* 2.2cm(sidebar) − 3.2cm(margin-left) */
+            bottom: -2.3cm;   /* 0.5cm arriba del borde físico inferior */
+            width: 19.39cm;   /* 21.59cm(ancho página) − 2.2cm(sidebar) */
+        }
+
+        .footer-img {
+            width: 100%;
+            display: block;
+        }
+
+        /* ============================================================
+           HEADER — flujo normal, solo aparece en la primera página
+           ============================================================ */
+        .header-container {
+            display: table;
+            width: 100%;
+            margin-bottom: 0.5cm;
+        }
+
+        .header-left {
+            display: table-cell;
+            vertical-align: middle;
+            width: 60%;
+        }
+
+        .logo-img {
+            height: 2.5cm;
+            width: auto;
+        }
+
+        /* ============================================================
+           CONTENIDO — fluye naturalmente, WeasyPrint pagina automático
+           ============================================================ */
+        .document-container {
+            padding-left: 0.5cm;
+        }
+
+        .document-header {
+            margin-bottom: 0.6cm;
+        }
+
+        .fecha-doc {
+            margin-bottom: 0.2cm;
+        }
+
+        .referencia {
+            font-weight: bold;
+        }
+
+        .destinatario {
+            margin-bottom: 0.6cm;
+        }
+
+        .destinatario-nombre {
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .saludo {
+            margin-bottom: 0.4cm;
+        }
+
+        .cuerpo {
+            text-align: justify;
+            line-height: 1.4;
+        }
+
+        .parrafo {
+            margin-bottom: 0.4cm;
+        }
+
+        /* Evitar que un bloque de empresa se parta entre páginas */
+        .empresa-bloque {
+            page-break-inside: avoid;
+        }
+
+        /* Evitar que la firma se parta entre páginas */
+        .firma-bloque {
+            page-break-inside: avoid;
+        }
+
+        /* Área de Firma */
+        .atentamente {
+            margin-top: 0.6cm;
+            margin-bottom: 0.2cm;
+        }
+
+        .firma-espacio {
+            height: 2.2cm;
+        }
+
+        .firma-info {
+            line-height: 1.1;
+        }
+
+        .firma-nombre {
+            font-weight: bold;
+            font-size: 10.5pt;
+        }
+
+        .firma-cargo {
+            font-size: 9.5pt;
+        }
+
+        .firma-iniciales {
+            margin-top: 0.4cm;
+            font-size: 8pt;
+            color: #666;
+        }
+
+        /* ============================================================
+           SOPORTE PARA CONTENIDO EDITADO CON TIPTAP
+           ============================================================ */
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 0.3cm 0;
+        }
+        td, th {
+            border: 1px solid #000;
+            padding: 4px 8px;
+            vertical-align: top;
+            font-size: 10pt;
+        }
+        th {
+            font-weight: bold;
+            background-color: #f3f4f6;
+        }
+        u { text-decoration: underline; }
+        s { text-decoration: line-through; }
+        sub { vertical-align: sub; font-size: 0.8em; }
+        sup { vertical-align: super; font-size: 0.8em; }
+        mark { background-color: #FFFF00; }
+        hr { border: none; border-top: 1px solid #999; margin: 0.4cm 0; }
+        /* Párrafos sin clase dentro de .document-container heredan el estilo de cuerpo */
+        .document-container p { margin-bottom: 0.4cm; }
+        .cuerpo p { text-align: justify; }
+    </style>
+</head>
+<body>
+    <!-- Sidebar de Verificación (se repite en cada página) -->
+    <div class="verification-sidebar">
+        <div class="sidebar-text-wrap">
+            <div class="sidebar-text">
+                <span class="verification-label">Código de verificación:</span><br>
+                <span class="verification-code">{{ tramite.uuid }}</span><br>
+                <span>Electrónico</span>
+            </div>
+        </div>
+
+        <div class="qr-container-sidebar">
+            <img src="{{ qr_code_data }}" class="qr-img" alt="QR Code">
+        </div>
+    </div>
+
+    <!-- Footer Institucional (se repite en cada página) -->
+    <div class="footer-image-container">
+        <img src="{{ footer_path }}" class="footer-img" alt="Footer Institucional">
+    </div>
+
+    <!-- Header Institucional (solo primera página, flujo normal) -->
+    <div class="header-container">
+        <div class="header-left">
+            <img src="{{ logo_path }}" alt="Logo Gobierno Nacional" class="logo-img">
+        </div>
+    </div>
+
+    <!-- Contenido del documento (fluye a través de múltiples páginas) -->
+    <div class="document-container">
+        <!-- Fecha y Referencia -->
+        <div class="document-header">
+            <div class="fecha-doc">Panamá, {{ fecha_emision_formateada }}</div>
+            <div class="referencia">MICI-DGCI-AL-N-N°-[{{ tramite.numero_referencia|default:"XXX" }}]-{{ tramite.fecha_creacion|date:"Y" }}</div>
+        </div>
+
+        <!-- Destinatario -->
+        <div class="destinatario">
+            <div>Estimado(a)</div>
+            <div class="destinatario-nombre">{{ tramite.destinatario|default:"[DESTINATARIO]" }}</div>
+        </div>
+
+        <!-- Párrafo introductorio -->
+        <div class="cuerpo">
+            <p class="parrafo">
+                Reciba un cordial saludo, me dirijo a usted en ocasión de dar respuesta a la nota presentada a este despacho el <strong>{{ fecha_solicitud_formateada }}</strong>, en la cual solicita: <strong>{{ tramite.objetivo_solicitud|default:"[OBJETIVO DE LA SOLICITUD]" }}</strong>{% if tramite.proposito %}, con el objetivo de <strong>{{ tramite.proposito }}</strong>{% endif %}.
+            </p>
+
+            {% if empresas or noconsta_entries %}
+            <!-- Párrafo introductorio -->
+            <p class="parrafo">
+                La Dirección General de Comercio Interior, amparados por la Ley No.5 de 11 de enero de 2007, que agiliza el proceso de apertura de empresas y establece otras disposiciones, luego de la revisión correspondiente a nuestros archivos, podemos <strong>CERTIFICAR</strong> lo siguiente:
+            </p>
+            {% endif %}
+
+            <!-- Bloque de empresas (dinámico) -->
+            {% for emp in empresas %}
+            <p class="parrafo empresa-bloque">
+                <strong>CONSTA</strong> registro de: Aviso de Operación: <strong>{{ emp.numero_aviso }}</strong>{% if emp.numero_licencia %}, Número de Licencia: <strong>{{ emp.numero_licencia }}</strong>{% endif %}{% if emp.razon_comercial %}, Razón Comercial: <strong>{{ emp.razon_comercial }}</strong>{% endif %}{% if emp.representante_legal %}, Representante Legal: <strong>{{ emp.representante_legal }}</strong>{% endif %}{% if emp.cedula_representante %}, Cédula de Representante Legal: <strong>{{ emp.cedula_representante }}</strong>{% endif %}{% if emp.razon_social %}, Razón Social: <strong>{{ emp.razon_social }}</strong>{% endif %}{% if emp.ruc %}, RUC: <strong>{{ emp.ruc }}{% if emp.dv %}-{{ emp.dv }}{% endif %}</strong>{% endif %}{% if emp.fecha_inicio_operaciones %}, Fecha de Inicio de Operaciones: <strong>{{ emp.fecha_inicio_operaciones_formateada|default:emp.fecha_inicio_operaciones }}</strong>{% endif %}{% if emp.ubicacion_completa %}, Dirección del Establecimiento: <strong>{{ emp.ubicacion_completa }}</strong>{% endif %}{% if emp.estatus %}, Estatus: <strong>{{ emp.estatus }}</strong>{% endif %}.{% if emp.estatus == "En Solicitud" %} Es importante señalar que el estatus "En Solicitud" obedece a que nunca fue concluido el trámite en el sistema <strong>www.panamaemprende.gob.pa</strong> por lo tanto, no cuenta con un consecutivo en el Aviso de operación y no cuenta con el pago del derecho único del Aviso.{% endif %}
+            </p>
+            {% endfor %}
+
+            <!-- Bloques No Aparece — uno por entrada -->
+            {% for entrada in noconsta_entries %}
+            <p class="parrafo empresa-bloque">
+                <strong>NO CONSTA</strong> registro de Licencia, Registro Comercial ni Aviso de Operación en el Sistema Panamá Emprende del Ministerio de Comercio e Industrias, {{ entrada.frase_certificacion }}
+            </p>
+            {% endfor %}
+
+            <!-- Bloque de preguntas (dinámico) -->
+            {% if preguntas %}
+            <div class="parrafo">
+                {% for pregunta in preguntas %}
+                <p><strong>{{ forloop.counter }}. {{ pregunta.texto_pregunta }}</strong></p>
+                <p>Respuesta: {{ pregunta.texto_respuesta|default:"Sin respuesta" }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if tramite.respuesta_solicitud %}
+            <div class="parrafo">
+                <p>{{ tramite.respuesta_solicitud }}</p>
+            </div>
+            {% endif %}
+
+            <!-- Párrafo de cierre -->
+            {% if noconsta_entries and not empresas %}
+            <p class="parrafo">
+                En cumplimiento de lo que establece el artículo 2 de la Ley 2 de 5 de febrero de 2013, podrán tanto los usuarios como las instituciones públicas acceder al sitio web de Panamá Emprende <strong>https://www.panamaemprende.gob.pa/consulta-publica-new</strong> para expedir de manera electrónica las Certificaciones para acreditar la existencia o no de Aviso de Operación.
+            </p>
+            {% else %}
+            <p class="parrafo">
+                De lo anterior, adjuntamos documento para su debida constancia, el mismo es válido tal cual lo establece el artículo 2 de la Ley 2 de 5 de febrero de 2013, que reforma disposiciones de la Ley No.5 de 11 de enero de 2007.
+            </p>
+            {% endif %}
+        </div>
+
+        <!-- Firma (no se parte entre páginas) -->
+        <div class="firma-bloque">
+            <div class="atentamente">
+                <p>Atentamente,</p>
+            </div>
+
+            <div class="firma-espacio">
+                <!-- Espacio vacío para firma digital externa -->
+            </div>
+
+            <div class="firma-info">
+                <div class="firma-nombre">
+                    {% if tramite.firmante %}
+                        {{ tramite.firmante.get_full_name|default:tramite.firmante.username }}
+                    {% else %}
+                        [NOMBRE DEL FIRMANTE]
+                    {% endif %}
+                </div>
+                <div class="firma-cargo">Directora General de Comercio Interior</div>
+                <div class="firma-departamento">Ministerio de Comercio e Industrias</div>
+                <div class="firma-iniciales">JG/vch</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

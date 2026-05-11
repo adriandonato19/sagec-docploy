@@ -1,0 +1,160 @@
+{% comment %}
+Fragmento HTML que se inyecta vía HTMX con los resultados de búsqueda.
+Actualizado para soportar modal, toggle agregar/remover, y paginación.
+{% endcomment %}
+
+<!-- Contenedor para el Modal (vacio por defecto) -->
+<div id="modal-target"></div>
+
+<!-- Tabla de Avisos de Operación -->
+<div class="bg-white shadow-lg rounded-lg p-6 animate-fade-in">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-xl font-bold text-gray-800">Avisos de Operación Encontrados</h2>
+            <p class="text-sm text-gray-500 mt-1">Filtro aplicado: {{ campo_label }} = "{{ query }}"</p>
+        </div>
+        <span class="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-bold rounded-full">
+            {{ paginacion.total }} Registro(s)
+        </span>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Número de Aviso</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">RUC</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Razón Comercial</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Razón Social</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Representante Legal</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Cédula</th>
+                    <th class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Estatus</th>
+                    <th class="px-6 py-3 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for aviso in avisos %}
+                <tr class="hover:bg-blue-50 transition-colors duration-150">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-900">
+                        {{ aviso.numero_aviso }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {{ aviso.ruc_completo }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ aviso.razon_comercial }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ aviso.razon_social }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ aviso.representante_legal }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {{ aviso.cedula_representante }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        {% include 'components/badge.html' with estado=aviso.estatus %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-center">
+                        <div class="flex items-center justify-center space-x-3">
+                            <!-- Acción Ver (Abre Modal) -->
+                            <button type="button"
+                                    hx-get="{% url 'integracion:detalle_empresa_hx' aviso=aviso.numero_aviso %}"
+                                    hx-target="#modal-target"
+                                    class="text-blue-600 hover:text-blue-900 font-bold flex items-center group">
+                                <svg class="w-4 h-4 mr-1 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                                Ver
+                            </button>
+
+                            {% if aviso.ruc_completo in rucs_en_cart %}
+                            <!-- Acción Remover del Trámite -->
+                            <button type="button"
+                                    hx-post="{% url 'tramites:remover_empresa_por_ruc_hx' %}"
+                                    hx-target="#empresas-cart"
+                                    hx-swap="outerHTML"
+                                    hx-vals='{"ruc_empresa": "{{ aviso.ruc_completo }}"}'
+                                    class="text-red-600 hover:text-red-900 font-bold flex items-center group">
+                                <svg class="w-4 h-4 mr-1 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                </svg>
+                                Remover
+                            </button>
+                            {% else %}
+                            <!-- Acción Agregar al Trámite -->
+                            <button type="button"
+                                    hx-post="{% url 'tramites:agregar_empresa_desde_resultado_hx' %}"
+                                    hx-target="#empresas-cart"
+                                    hx-swap="outerHTML"
+                                    hx-vals='{"ruc_empresa": "{{ aviso.ruc_completo }}"}'
+                                    class="text-green-600 hover:text-green-900 font-bold flex items-center group">
+                                <svg class="w-4 h-4 mr-1 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Agregar
+                            </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Paginación -->
+    {% if paginacion.last_page > 1 %}
+    <div class="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+        <p class="text-sm text-gray-600">
+            Página {{ paginacion.current_page }} de {{ paginacion.last_page }}
+            &middot; Total: {{ paginacion.total }} registro{{ paginacion.total|pluralize:"s" }}
+        </p>
+        <div class="flex gap-2">
+            {% if paginacion.has_previous %}
+            <button type="button"
+                    data-empresa-pagination="true"
+                    hx-get="{% url 'integracion:api_search' %}?empresa_query={{ query|urlencode }}&campo_busqueda={{ campo_busqueda|urlencode }}&page={{ paginacion.current_page|add:"-1" }}"
+                    hx-target="#resultados-empresa-inline"
+                    hx-swap="innerHTML"
+                    class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                &larr; Anterior
+            </button>
+            {% endif %}
+            {% if paginacion.has_next %}
+            <button type="button"
+                    data-empresa-pagination="true"
+                    hx-get="{% url 'integracion:api_search' %}?empresa_query={{ query|urlencode }}&campo_busqueda={{ campo_busqueda|urlencode }}&page={{ paginacion.current_page|add:"1" }}"
+                    hx-target="#resultados-empresa-inline"
+                    hx-swap="innerHTML"
+                    class="px-3 py-1 text-sm bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                Siguiente &rarr;
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // Re-fetch search results when cart changes to update Agregar/Remover toggles
+    if (!window.__empresasChangedListenerRegistered) {
+        document.body.addEventListener('empresas-changed', function() {
+            const input = document.getElementById('empresa_query_input');
+            const select = document.getElementById('campo_busqueda_select');
+            if (input && select && input.value.trim()) {
+                const params = new URLSearchParams({
+                    empresa_query: input.value.trim(),
+                    campo_busqueda: select.value,
+                });
+                htmx.ajax('GET', '{% url "integracion:api_search" %}?' + params.toString(), {
+                    target: '#resultados-empresa-inline',
+                    swap: 'innerHTML'
+                });
+            }
+        });
+        window.__empresasChangedListenerRegistered = true;
+    }
+</script>

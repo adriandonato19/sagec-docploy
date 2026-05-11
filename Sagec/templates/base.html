@@ -1,0 +1,433 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SAGEC - Sistema Automatizado de Generación de Certificados{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    
+    <!-- HTMX para Django CSRF -->
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            document.body.addEventListener('htmx:configRequest', function(event) {
+                event.detail.headers['X-CSRFToken'] = document.querySelector('[name=csrf-token]').content;
+            });
+        });
+    </script>
+    
+    <style>
+        .sidebar-active {
+            background-color: #eff6ff;
+            color: #1d4ed8;
+            border-left: 3px solid #2563eb;
+        }
+
+        /* Barra de progreso global HTMX */
+        #global-progress {
+            display: none;
+            position: fixed;
+            top: 64px; /* altura del navbar */
+            left: 0;
+            width: 100%;
+            height: 3px;
+            z-index: 9998;
+            background: #2563eb;
+            animation: htmx-progress 1.5s ease-in-out infinite;
+        }
+        #global-progress.htmx-request { display: block; }
+        @keyframes htmx-progress {
+            0%   { transform: scaleX(0); transform-origin: left; }
+            50%  { transform: scaleX(0.7); transform-origin: left; }
+            100% { transform: scaleX(1); transform-origin: left; }
+        }
+
+        /* Transición de mensajes */
+        .msg-alert { transition: opacity 0.5s ease; }
+
+        .password-toggle-wrapper {
+            position: relative;
+        }
+
+        .password-toggle-button {
+            position: absolute;
+            top: 50%;
+            right: 0.75rem;
+            transform: translateY(-50%);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+            transition: color 0.2s ease;
+        }
+
+        .password-toggle-button:hover {
+            color: #1f2937;
+        }
+
+        /* Estilos de impresión */
+        @media print {
+            nav, aside, footer, .no-print { display: none !important; }
+            main { margin-left: 0 !important; }
+            body { background: white; }
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <!-- Navbar (Top) -->
+    <nav class="bg-white border-b border-gray-200 shadow-sm text-gray-800 z-50 fixed w-full top-0 h-16 flex items-center">
+        <div class="px-4 sm:px-6 lg:px-8 w-full flex justify-between items-center">
+            <div class="flex items-center">
+                <button id="mobile-menu-button" class="md:hidden mr-4 text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+                    </svg>
+                </button>
+                <a href="{% if user.is_authenticated and user.debe_cambiar_password %}{% url 'identidad:perfil' %}{% elif user.is_authenticated and user.rol == 'FISCAL' %}{% url 'consultar_tramite' %}{% elif user.is_authenticated %}{% url 'tramites:bandeja_admin' %}{% else %}{% url 'identidad:login' %}{% endif %}" class="flex items-center space-x-3">
+                    <img src="{% static 'img/logo_oficial.png' %}" alt="Logo Gobierno Nacional" class="h-10 w-auto object-contain">
+                    <span class="text-xl font-bold tracking-tight text-gray-900">
+                        SAGEC <span class="text-blue-500">- MICI</span>
+                    </span>
+                </a>
+            </div>
+            <div class="flex items-center space-x-4">
+                {% if user.is_authenticated %}
+                    <div class="hidden sm:flex flex-col items-end mr-2">
+                        <span class="text-xs font-semibold uppercase text-gray-500">{{ user.get_rol_display }}</span>
+                        <span class="text-sm font-medium text-gray-800">{{ user.get_full_name|default:user.username }}</span>
+                    </div>
+                    <div class="relative">
+                        <button id="user-menu-button" type="button" class="flex items-center focus:outline-none" aria-haspopup="menu" aria-expanded="false">
+                            <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold ring-2 ring-blue-200">
+                                {{ user.username|slice:":1"|upper }}
+                            </div>
+                        </button>
+                        <!-- Dropdown simple -->
+                        <div id="user-menu" class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 hidden text-gray-800" role="menu" aria-labelledby="user-menu-button">
+                            <a href="{% url 'identidad:perfil' %}" class="block px-4 py-2 text-sm hover:bg-gray-100">Mi Perfil</a>
+                            <form method="post" action="{% url 'identidad:logout' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="w-full text-left px-4 py-2 text-sm hover:bg-gray-100 text-red-600">Cerrar Sesión</button>
+                            </form>
+                        </div>
+                    </div>
+                {% else %}
+                    <a href="{% url 'identidad:login' %}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition duration-200">
+                        Iniciar Sesión
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Barra de progreso global para peticiones HTMX -->
+    <div id="global-progress" hx-indicator="body"></div>
+
+    <div class="flex flex-1 pt-16 h-screen">
+        {% if user.is_authenticated %}
+        <!-- Sidebar -->
+        <aside id="sidebar" class="bg-white border-r border-gray-200 text-gray-700 w-64 flex-shrink-0 hidden md:flex flex-col fixed h-full z-40 transition-all duration-300 transform md:translate-x-0">
+            <div class="flex-1 py-6">
+                <nav class="px-2 space-y-1">
+                    {% if user.debe_cambiar_password %}
+                    <p class="px-3 text-xs font-semibold text-amber-600 uppercase tracking-wider mb-2">Seguridad</p>
+
+                    <a href="{% url 'identidad:perfil' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-amber-50 text-amber-700 transition-colors {% if request.resolver_match.url_name == 'perfil' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 11c0 .552-.448 1-1 1s-1-.448-1-1 .448-1 1-1 1 .448 1 1zm0 0V8m0 8h.01M5.07 19H18.93c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.338 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        Cambio Obligatorio de Contraseña
+                    </a>
+                    {% else %}
+                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Principal</p>
+
+                    {% if user.rol == 'TRABAJADOR' or user.rol == 'DIRECTOR' %}
+                    <a href="{% url 'tramites:bandeja_admin' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-600 transition-colors {% if request.resolver_match.url_name == 'bandeja_admin' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'bandeja_admin' %}text-blue-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        Bandeja de Solicitudes
+                    </a>
+                    {% endif %}
+
+                    <a href="{% url 'consultar_tramite' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-600 transition-colors {% if request.resolver_match.url_name == 'consultar_tramite' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'consultar_tramite' %}text-blue-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                        </svg>
+                        Crear Trámite
+                    </a>
+
+                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2">Mis Documentos</p>
+
+                    <a href="{% url 'tramites:mis_certificados' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-600 transition-colors {% if request.resolver_match.url_name == 'mis_certificados' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'mis_certificados' %}text-blue-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Mis Certificados
+                    </a>
+
+                    <a href="{% url 'tramites:mis_oficios' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-600 transition-colors {% if request.resolver_match.url_name == 'mis_oficios' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'mis_oficios' %}text-blue-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        Mis Oficios
+                    </a>
+
+                    <p class="px-3 text-xs font-semibold text-gray-400 uppercase tracking-wider mt-6 mb-2">Sistema</p>
+
+                    {% if user.rol == 'DIRECTOR' %}
+                    <a href="{% url 'identidad:lista_usuarios' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-600 transition-colors {% if request.resolver_match.url_name == 'lista_usuarios' or request.resolver_match.url_name == 'crear_usuario' or request.resolver_match.url_name == 'editar_usuario' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'lista_usuarios' or request.resolver_match.url_name == 'crear_usuario' or request.resolver_match.url_name == 'editar_usuario' %}text-blue-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5V4H2v16h5m10 0v-2a4 4 0 00-4-4H9a4 4 0 00-4 4v2m10 0H7m6-12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        Gestión de Usuarios
+                    </a>
+                    {% endif %}
+
+                    <a href="{% url 'identidad:perfil' %}" class="flex items-center px-3 py-2 text-sm font-medium rounded-md hover:bg-gray-50 text-gray-600 transition-colors {% if request.resolver_match.url_name == 'perfil' %}sidebar-active{% endif %}">
+                        <svg class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'perfil' %}text-blue-600{% else %}text-gray-400{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        Configuración
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+            <div class="p-4 bg-gray-50 border-t border-gray-200 text-xs text-gray-400">
+                SAGEC v1.0.0
+            </div>
+        </aside>
+        {% endif %}
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto {% if user.is_authenticated %}md:ml-64{% endif %} bg-gray-50">
+            <div class="p-4 sm:p-6 lg:p-8">
+                <!-- Mensajes -->
+                {% if messages %}
+                    <div class="mb-6" id="messages-container">
+                        {% for message in messages %}
+                            <div class="msg-alert mb-4 p-4 rounded-lg shadow-sm border {% if message.tags == 'error' %}bg-red-50 text-red-800 border-red-200{% elif message.tags == 'success' %}bg-green-50 text-green-800 border-green-200{% elif message.tags == 'warning' %}bg-yellow-50 text-yellow-800 border-yellow-200{% else %}bg-blue-50 text-blue-800 border-blue-200{% endif %}"
+                                 data-autohide="{% if message.tags == 'error' %}false{% else %}true{% endif %}">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <svg class="w-5 h-5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                            {% if message.tags == 'success' %}
+                                                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                                            {% else %}
+                                                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                                            {% endif %}
+                                        </svg>
+                                        <span class="text-sm font-medium">{{ message }}</span>
+                                    </div>
+                                    <button type="button" onclick="dismissAlert(this.parentElement.parentElement)"
+                                            class="ml-4 flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity" aria-label="Cerrar">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+
+                <!-- Content -->
+                {% block content %}{% endblock %}
+            </div>
+            
+            <footer class="bg-white border-t border-gray-200 py-4 mt-8">
+                <div class="px-4 sm:px-6 lg:px-8 text-center text-xs text-gray-500">
+                    <p>&copy; 2025 Ministerio de Comercio e Industrias (MICI) - SAGEC</p>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <script>
+        // Toggle Mobile Menu
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const sidebar = document.getElementById('sidebar');
+        
+        if (mobileMenuButton && sidebar) {
+            mobileMenuButton.addEventListener('click', () => {
+                sidebar.classList.toggle('hidden');
+                sidebar.classList.toggle('flex');
+                sidebar.classList.toggle('w-full');
+                sidebar.classList.toggle('inset-0');
+            });
+        }
+
+        // $Reusable$
+        // Dropdown: toggle on click + close on outside click / Escape
+        function setupClickOutsideDropdown({ buttonEl, menuEl }) {
+            if (!buttonEl || !menuEl) return;
+
+            const setOpen = (isOpen) => {
+                menuEl.classList.toggle('hidden', !isOpen);
+                buttonEl.setAttribute('aria-expanded', String(isOpen));
+            };
+
+            const toggle = () => setOpen(menuEl.classList.contains('hidden'));
+
+            buttonEl.addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggle();
+            });
+
+            menuEl.addEventListener('click', (e) => {
+                // Keep menu open when interacting with it
+                e.stopPropagation();
+            });
+
+            document.addEventListener('click', (e) => {
+                const target = e.target;
+                const clickedInside = buttonEl.contains(target) || menuEl.contains(target);
+                if (!clickedInside) setOpen(false);
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') setOpen(false);
+            });
+        }
+
+        setupClickOutsideDropdown({
+            buttonEl: document.getElementById('user-menu-button'),
+            menuEl: document.getElementById('user-menu'),
+        });
+    </script>
+    {% block extra_js %}{% endblock %}
+
+    <!-- Contenedor para modales HTMX -->
+    <div id="modal-slot"></div>
+
+    <!-- Modal de confirmación global -->
+    {% include 'components/confirm_modal.html' %}
+
+    <script>
+        const eyeIcon = `
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7z"></path>
+            </svg>
+        `;
+
+        const eyeOffIcon = `
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 3l18 18"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M10.58 10.58A2 2 0 0 0 12 14a2 2 0 0 0 1.42-.58"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9.88 5.09A10.94 10.94 0 0 1 12 5c4.48 0 8.27 2.94 9.54 7a11.83 11.83 0 0 1-4.13 5.94"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M6.1 6.1A11.86 11.86 0 0 0 2.46 12c1.27 4.06 5.06 7 9.54 7 1.61 0 3.15-.38 4.5-1.06"></path>
+            </svg>
+        `;
+
+        function decoratePasswordField(input) {
+            if (!input || input.dataset.passwordToggleReady === 'true') return;
+            if (input.type !== 'password') return;
+
+            input.dataset.passwordToggleReady = 'true';
+            input.classList.add('pr-12');
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'password-toggle-wrapper';
+            input.parentNode.insertBefore(wrapper, input);
+            wrapper.appendChild(input);
+
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'password-toggle-button';
+            button.setAttribute('aria-label', 'Mostrar contraseña');
+            button.setAttribute('aria-pressed', 'false');
+            button.innerHTML = eyeIcon;
+
+            button.addEventListener('click', function () {
+                const reveal = input.type === 'password';
+                input.type = reveal ? 'text' : 'password';
+                button.innerHTML = reveal ? eyeOffIcon : eyeIcon;
+                button.setAttribute('aria-label', reveal ? 'Ocultar contraseña' : 'Mostrar contraseña');
+                button.setAttribute('aria-pressed', reveal ? 'true' : 'false');
+            });
+
+            wrapper.appendChild(button);
+        }
+
+        function applyPasswordToggles(root) {
+            const scope = root || document;
+            scope.querySelectorAll('input[type="password"]').forEach(decoratePasswordField);
+        }
+
+        // ── Mensajes auto-dismissibles ────────────────────────────────
+        function dismissAlert(el) {
+            el.style.opacity = '0';
+            setTimeout(() => el.remove(), 500);
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.msg-alert[data-autohide="true"]').forEach(function (el) {
+                setTimeout(() => dismissAlert(el), 5000);
+            });
+
+            applyPasswordToggles(document);
+            document.body.addEventListener('htmx:afterSwap', function (event) {
+                applyPasswordToggles(event.target);
+            });
+
+            // ── Barra de progreso HTMX ────────────────────────────────
+            const bar = document.getElementById('global-progress');
+            document.body.addEventListener('htmx:beforeRequest', () => bar && bar.classList.add('htmx-request'));
+            document.body.addEventListener('htmx:afterRequest',  () => bar && bar.classList.remove('htmx-request'));
+
+            // ── Modal de confirmación ─────────────────────────────────
+            const modal    = document.getElementById('confirm-modal');
+            const backdrop = document.getElementById('confirm-modal-backdrop');
+            const msgEl    = document.getElementById('confirm-modal-message');
+            const cancelBtn = document.getElementById('confirm-modal-cancel');
+            const okBtn    = document.getElementById('confirm-modal-ok');
+            const iconWrap = document.getElementById('confirm-modal-icon');
+
+            let _pendingForm = null;
+
+            window.showConfirmModal = function (message, formEl, opts) {
+                opts = opts || {};
+                _pendingForm = formEl;
+                msgEl.textContent = message;
+
+                // variante de color
+                const isDanger = opts.variant === 'danger';
+                iconWrap.className = 'flex items-center justify-center w-12 h-12 rounded-full mx-auto mb-4 ' +
+                    (isDanger ? 'bg-red-100' : 'bg-yellow-100');
+                iconWrap.querySelector('svg').className =
+                    'w-6 h-6 ' + (isDanger ? 'text-red-600' : 'text-yellow-600');
+                okBtn.className = 'flex-1 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors ' +
+                    (isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700');
+
+                modal.classList.remove('hidden');
+                cancelBtn.focus();
+            };
+
+            function closeModal() {
+                modal.classList.add('hidden');
+                _pendingForm = null;
+            }
+
+            cancelBtn.addEventListener('click', closeModal);
+            backdrop.addEventListener('click', closeModal);
+            okBtn.addEventListener('click', function () {
+                if (_pendingForm) _pendingForm.submit();
+                closeModal();
+            });
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+            });
+        });
+    </script>
+</body>
+</html>

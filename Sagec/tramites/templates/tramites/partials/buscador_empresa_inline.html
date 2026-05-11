@@ -1,0 +1,155 @@
+{% comment %}
+Buscador de empresa inline para usar dentro del formulario de creación de trámite.
+Permite seleccionar el campo de búsqueda y filtrar los resultados renderizados.
+{% endcomment %}
+
+<div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+    <label class="block text-sm font-medium text-gray-700 mb-2">Buscar empresa por campo específico</label>
+    <div class="grid grid-cols-1 md:grid-cols-[220px_minmax(0,1fr)_auto] gap-2 mb-2">
+        <select id="campo_busqueda_select"
+                name="campo_busqueda"
+                hx-get="{% url 'integracion:api_search' %}"
+                hx-trigger="change"
+                hx-target="#resultados-empresa-inline"
+                hx-swap="innerHTML"
+                hx-include="#campo_busqueda_select, #empresa_query_input"
+                hx-indicator="#buscador-spinner"
+                class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+            <option value="ruc" selected>RUC</option>
+            <option value="cedula">Cédula</option>
+            <option value="nombre_comercial">Nombre comercial</option>
+            <option value="razon_social">Razón social</option>
+        </select>
+        <input type="text"
+               id="empresa_query_input"
+               name="empresa_query"
+               placeholder="Buscar por RUC (ej: 573584-1-447039)"
+               hx-get="{% url 'integracion:api_search' %}"
+               hx-trigger="keyup changed delay:500ms"
+               hx-target="#resultados-empresa-inline"
+               hx-swap="innerHTML"
+               hx-indicator="#buscador-spinner"
+               hx-include="#campo_busqueda_select, #empresa_query_input"
+               class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+        <button type="button"
+                id="agregar-empresa-directa-btn"
+                hx-post="{% url 'tramites:agregar_empresa_hx' %}"
+                hx-target="#empresas-cart"
+                hx-swap="outerHTML"
+                hx-include="#campo_busqueda_select, #empresa_query_input"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 whitespace-nowrap text-sm disabled:bg-blue-300 disabled:cursor-not-allowed">
+            Agregar
+        </button>
+    </div>
+    <p id="busqueda-empresa-help" class="text-xs text-gray-500 mb-3">
+        Busque por el RUC exacto para agregar directamente todos los avisos al trámite.
+    </p>
+    <span id="buscador-spinner" class="htmx-indicator text-sm text-gray-500">Buscando...</span>
+    <div id="resultados-empresa-anchor" class="scroll-mt-24"></div>
+    <div id="resultados-empresa-inline" class="mt-3"></div>
+    <div id="empresas-cart-error"></div>
+</div>
+
+<script>
+    (function() {
+        const select = document.getElementById('campo_busqueda_select');
+        const input = document.getElementById('empresa_query_input');
+        const button = document.getElementById('agregar-empresa-directa-btn');
+        const help = document.getElementById('busqueda-empresa-help');
+        if (!select || !input || !button || !help) {
+            return;
+        }
+
+        const config = {
+            ruc: {
+                placeholder: 'Buscar por RUC (ej: 573584-1-447039)',
+                help: 'Busque por el RUC exacto para agregar directamente todos los avisos al trámite. Si no hay resultados, Agregar generará el No Consta.',
+                directAddEnabled: true,
+            },
+            cedula: {
+                placeholder: 'Buscar por cédula (ej: 8-123-456)',
+                help: 'Si no hay resultados, Agregar generará automáticamente el No Consta. Si hay resultados, agregue la empresa desde una fila.',
+                directAddEnabled: false,
+            },
+            nombre_comercial: {
+                placeholder: 'Buscar por nombre comercial',
+                help: 'Si no hay resultados, Agregar generará automáticamente el No Consta. Si hay resultados, agregue la empresa desde una fila.',
+                directAddEnabled: false,
+            },
+            razon_social: {
+                placeholder: 'Buscar por razón social',
+                help: 'Si no hay resultados, Agregar generará automáticamente el No Consta. Si hay resultados, agregue la empresa desde una fila.',
+                directAddEnabled: false,
+            },
+        };
+
+        function applyState() {
+            const state = config[select.value] || config.ruc;
+            input.placeholder = state.placeholder;
+            help.textContent = state.help;
+            button.disabled = !state.directAddEnabled;
+            button.title = state.directAddEnabled ? '' : 'Disponible solo cuando la búsqueda es por RUC';
+        }
+
+        function syncAddButtonWithResults() {
+            const noConstaMarker = document.querySelector('#resultados-empresa-inline [data-auto-noconsta="true"]');
+            if (noConstaMarker) {
+                button.disabled = false;
+                button.title = '';
+                help.textContent = `Si no hay resultados, Agregar generará automáticamente el No Consta ${noConstaMarker.dataset.noconstaFrase}.`;
+                return;
+            }
+
+            applyState();
+        }
+
+        select.addEventListener('change', applyState);
+        input.addEventListener('input', applyState);
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            if (event.target && event.target.id === 'resultados-empresa-inline') {
+                syncAddButtonWithResults();
+            }
+        });
+        applyState();
+    })();
+
+    (function() {
+        if (window.__empresaPaginationScrollListenersRegistered) {
+            return;
+        }
+
+        document.body.addEventListener('click', function(event) {
+            const trigger = event.target.closest('[data-empresa-pagination="true"]');
+            if (!trigger) {
+                return;
+            }
+
+            trigger.blur();
+            window.__empresaPaginationScrollPending = true;
+        });
+
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            if (!event.target || event.target.id !== 'resultados-empresa-inline') {
+                return;
+            }
+
+            if (!window.__empresaPaginationScrollPending) {
+                return;
+            }
+
+            const anchor = document.getElementById('resultados-empresa-anchor');
+            if (anchor) {
+                anchor.scrollIntoView({ behavior: 'auto', block: 'start' });
+            }
+            window.__empresaPaginationScrollPending = false;
+        });
+
+        document.body.addEventListener('htmx:responseError', function(event) {
+            if (event.detail.elt && event.detail.elt.matches('[data-empresa-pagination="true"]')) {
+                window.__empresaPaginationScrollPending = false;
+            }
+        });
+
+        window.__empresaPaginationScrollListenersRegistered = true;
+    })();
+</script>

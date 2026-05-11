@@ -1,0 +1,4 @@
+# Dev & Testing (puedes separarlos en requirements-dev.txt)
+pytest-django
+factory-boy  # Para crear datos de prueba falsos
+black        # Formateador de código

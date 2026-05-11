@@ -1,0 +1,11 @@
+Estimado/a {{ solicitante.get_full_name|default:solicitante.username }},
+
+Su {{ tipo }} ha sido firmado digitalmente y está listo.
+
+  Número de referencia : {{ tramite.numero_referencia }}
+  Firmado por          : {{ firmante.get_full_name|default:firmante.username }}
+
+Adjunto a este correo encontrará el documento PDF firmado.
+
+Este es un correo automático del Sistema SAGEC.
+Ministerio de Comercio e Industrias (MICI) — No responder a este correo.

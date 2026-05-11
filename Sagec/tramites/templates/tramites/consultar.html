@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}Crear Trámite - SAGEC{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-2xl font-bold mb-6 text-gray-800">Crear Nuevo Trámite</h1>
+    <p class="text-gray-600 mb-8">Seleccione el tipo de documento que desea crear.</p>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="tipo-selector">
+        <!-- Card Certificado -->
+        <button hx-get="{% url 'formulario_tipo_hx' %}?tipo=CERTIFICADO"
+                hx-target="#formulario-container"
+                hx-swap="innerHTML"
+                type="button"
+                class="bg-white shadow-lg rounded-lg p-8 hover:shadow-xl hover:border-blue-500 border-2 border-transparent transition-all text-left group">
+            <div class="flex items-center mb-4">
+                <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center mr-4">
+                    <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800 group-hover:text-blue-600">Certificado</h2>
+            </div>
+            <p class="text-gray-600 text-sm">Certifica información de empresas registradas. Las empresas son opcionales.</p>
+        </button>
+
+        <!-- Card Oficio -->
+        <button hx-get="{% url 'formulario_tipo_hx' %}?tipo=OFICIO"
+                hx-target="#formulario-container"
+                hx-swap="innerHTML"
+                type="button"
+                class="bg-white shadow-lg rounded-lg p-8 hover:shadow-xl hover:border-green-500 border-2 border-transparent transition-all text-left group">
+            <div class="flex items-center mb-4">
+                <div class="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mr-4">
+                    <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-bold text-gray-800 group-hover:text-green-600">Oficio</h2>
+            </div>
+            <p class="text-gray-600 text-sm">Documento oficial dirigido a un destinatario. Requiere al menos una empresa.</p>
+        </button>
+    </div>
+
+    <div id="formulario-container" class="mt-8">
+        <!-- Se llena dinámicamente con HTMX -->
+    </div>
+</div>
+{% endblock %}

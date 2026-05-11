@@ -1,0 +1,321 @@
+{% extends 'base.html' %}
+
+{% block title %}Detalle del Trámite - SAGEC{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Detalle del Trámite</h1>
+        <a href="{% url 'tramites:bandeja_admin' %}" class="text-blue-600 hover:underline">← Volver a la lista</a>
+    </div>
+
+    <div class="bg-white shadow-lg rounded-lg p-6 mb-6">
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div>
+                <p class="text-sm text-gray-600"><strong>Número de Referencia:</strong></p>
+                <p class="text-lg font-semibold">{{ tramite.numero_referencia|default:tramite.uuid }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600"><strong>Estado:</strong></p>
+                <p class="text-lg">{% include 'components/badge.html' with estado=tramite.estado %}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600"><strong>Tipo de Documento:</strong></p>
+                <p class="text-lg">{{ tramite.get_tipo_documento_display }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600"><strong>Fecha de Creación:</strong></p>
+                <p class="text-lg">{{ tramite.fecha_creacion|date:"d/m/Y H:i" }}</p>
+            </div>
+            {% if tramite.numero_carpetilla %}
+            <div>
+                <p class="text-sm text-gray-600"><strong>Número de Carpetilla:</strong></p>
+                <p class="text-lg">{{ tramite.numero_carpetilla }}</p>
+            </div>
+            {% endif %}
+            {% if tramite.numero_oficio_externo %}
+            <div>
+                <p class="text-sm text-gray-600"><strong>Número de Oficio Externo:</strong></p>
+                <p class="text-lg">{{ tramite.numero_oficio_externo }}</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Información de Empresa(s) -->
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Información de la Empresa{{ tramite.empresas_snapshot_list|length|pluralize:"s" }}</h2>
+            {% if tramite.empresas_snapshot_list %}
+            <div class="overflow-x-auto bg-gray-50 rounded-lg border border-gray-200">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">RUC</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Razón Social</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Razón Comercial</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Rep. Legal</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Estatus</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Ubicación</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Actividad</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Capital</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Fecha Inicio Ops</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Sucursal</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">N° Aviso</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for empresa in tramite.empresas_snapshot_list %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">{{ empresa.ruc_completo|default:empresa.ruc|default:"N/A" }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-900">{{ empresa.razon_social|default:"N/A" }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ empresa.razon_comercial|default:"N/A" }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ empresa.representante_legal|default:"N/A" }}</td>
+                            <td class="px-4 py-3 text-sm whitespace-nowrap">
+                                {% if empresa.estatus %}
+                                    {% include 'components/badge.html' with estado=empresa.estatus %}
+                                {% else %}
+                                    <span class="text-gray-500">N/A</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ empresa.ubicacion_completa|default:"N/A" }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700">{{ empresa.actividad_comercial|default:"N/A" }}</td>
+                            <td class="px-4 py-3 text-sm font-semibold text-gray-900 whitespace-nowrap">{{ empresa.capital_invertido|default:"—" }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{{ empresa.fecha_inicio_operaciones|default:"—" }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{{ empresa.sucursal|default:"—" }}</td>
+                            <td class="px-4 py-3 text-sm text-gray-700 whitespace-nowrap">{{ empresa.numero_aviso|default:"—" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <p class="text-gray-500">No hay datos de empresa disponibles.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Entradas de No Consta -->
+        {% if noconsta_entries %}
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Entradas de No Consta</h2>
+            <div class="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <ul class="list-disc list-inside space-y-1">
+                    {% for entrada in noconsta_entries %}
+                    <li class="text-sm text-gray-800">{{ entrada.descripcion }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Preguntas -->
+        {% include 'tramites/partials/preguntas_detalle.html' %}
+
+        <!-- Respuesta de Solicitud -->
+        {% include 'tramites/partials/respuesta_solicitud_detalle.html' %}
+
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold mb-4">Trazabilidad</h2>
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Solicitante</label>
+                        <p class="text-lg font-semibold text-gray-900">{{ tramite.solicitante.get_full_name|default:tramite.solicitante.username }}</p>
+                        <p class="text-sm text-gray-500 mt-1">{{ tramite.solicitante.get_rol_display }}</p>
+                        <p class="text-xs text-gray-400 mt-1">Creado: {{ tramite.fecha_creacion|date:"d/m/Y H:i" }}</p>
+                    </div>
+                    {% if tramite.revisor %}
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Revisor</label>
+                        <p class="text-lg font-semibold text-gray-900">{{ tramite.revisor.get_full_name|default:tramite.revisor.username }}</p>
+                        <p class="text-sm text-gray-500 mt-1">{{ tramite.revisor.get_rol_display }}</p>
+                        <p class="text-xs text-gray-400 mt-1">Revisado: {{ tramite.fecha_revision|date:"d/m/Y H:i" }}</p>
+                    </div>
+                    {% endif %}
+                    {% if tramite.firmante %}
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Firmante</label>
+                        <p class="text-lg font-semibold text-gray-900">{{ tramite.firmante.get_full_name|default:tramite.firmante.username }}</p>
+                        <p class="text-sm text-gray-500 mt-1">{{ tramite.firmante.get_rol_display }}</p>
+                        <p class="text-xs text-gray-400 mt-1">Firmado: {{ tramite.fecha_firma|date:"d/m/Y H:i" }}</p>
+                    </div>
+                    {% endif %}
+                    {% if tramite.destinatario %}
+                    <div>
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Destinatario</label>
+                        <p class="text-lg font-semibold text-gray-900">
+                            {% if tramite.titulo_destinatario %}{{ tramite.titulo_destinatario }} {% endif %}{{ tramite.destinatario }}
+                        </p>
+                        {% if tramite.cargo_destinatario %}
+                        <p class="text-sm text-gray-600 mt-1">{{ tramite.cargo_destinatario }}</p>
+                        {% endif %}
+                        {% if tramite.institucion_destinatario %}
+                        <p class="text-sm font-semibold text-gray-700 mt-1">{{ tramite.institucion_destinatario }}</p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    {% if tramite.objetivo_solicitud %}
+                    <div class="md:col-span-2">
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Objetivo de la Solicitud</label>
+                        <p class="text-lg text-gray-700 mt-1">{{ tramite.objetivo_solicitud }}</p>
+                    </div>
+                    {% endif %}
+                    {% if tramite.proposito %}
+                    <div class="md:col-span-2">
+                        <label class="text-xs font-bold text-gray-400 uppercase tracking-wider">Propósito del Trámite</label>
+                        <p class="text-lg text-gray-700 mt-1">{{ tramite.proposito }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if tramite.motivo_rechazo %}
+        <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+            <h3 class="font-semibold text-red-800 mb-2">Motivo de Rechazo</h3>
+            <p class="text-red-700">{{ tramite.motivo_rechazo }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Acciones según estado y rol -->
+        <div class="flex flex-wrap gap-4 no-print">
+            {% if tramite.estado == 'BORRADOR' and tramite.solicitante == user %}
+                <form id="form-enviar-tramite" method="post" action="{% url 'tramites:detalle' id=tramite.uuid %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="accion" value="enviar">
+                    <button type="button"
+                            onclick="showConfirmModal('¿Está seguro de enviar este trámite para revisión?', document.getElementById('form-enviar-tramite'))"
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        Enviar para Revisión
+                    </button>
+                </form>
+            {% endif %}
+
+            {% if tramite.estado == 'PENDIENTE' and user.puede_aprobar %}
+                {% if todas_respondidas %}
+                <form method="post" action="{% url 'tramites:aprobar' id=tramite.uuid %}">
+                    {% csrf_token %}
+                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+                        Aprobar
+                    </button>
+                </form>
+                {% else %}
+                <button disabled class="bg-gray-400 text-white px-4 py-2 rounded-lg cursor-not-allowed" title="Debe responder todas las preguntas antes de aprobar">
+                    Aprobar (preguntas pendientes)
+                </button>
+                {% endif %}
+            {% endif %}
+
+            {% if tramite.estado == 'EN_REVISION' and user.puede_aprobar %}
+                <a href="{% url 'tramites:editar_pdf' id=tramite.uuid %}"
+                   class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                    Editar PDF
+                </a>
+                <form method="post" action="{% url 'tramites:aprobar_pdf' id=tramite.uuid %}">
+                    {% csrf_token %}
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                        Aprobar PDF
+                    </button>
+                </form>
+            {% endif %}
+
+            {% if tramite.estado == 'APROBADO' and user.puede_firmar %}
+                <a href="{% url 'tramites:firmar' id=tramite.uuid %}" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700">
+                    Firmar
+                </a>
+            {% endif %}
+
+            {% if tramite.archivo_pdf or tramite.archivo_pdf_firmado %}
+                <button
+                    hx-get="{% url 'tramites:vista_previa_pdf' id=tramite.uuid %}"
+                    hx-target="#modal-slot"
+                    hx-swap="innerHTML"
+                    class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    Ver PDF{% if tramite.estado == 'FIRMADO' and tramite.archivo_pdf_firmado %} Firmado{% endif %}
+                </button>
+                <a href="{% url 'tramites:descargar' id=tramite.uuid %}" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Descargar PDF{% if tramite.estado == 'FIRMADO' and tramite.archivo_pdf_firmado %} Firmado{% endif %}
+                </a>
+            {% endif %}
+
+        </div>
+
+        {% if tramite.estado == 'PENDIENTE' and user.puede_aprobar %}
+        <details class="mt-4 no-print">
+            <summary class="inline-flex cursor-pointer list-none items-center rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
+                Rechazar solicitud
+            </summary>
+            <form method="post" action="{% url 'tramites:rechazar' id=tramite.uuid %}" class="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-4">
+                {% csrf_token %}
+                <label for="motivo-rechazo" class="block text-sm font-medium text-red-800 mb-2">Motivo del rechazo</label>
+                <textarea id="motivo-rechazo"
+                          name="motivo_rechazo"
+                          rows="4"
+                          required
+                          class="w-full rounded-lg border border-red-200 px-3 py-2 text-sm text-gray-700 focus:border-red-400 focus:ring-2 focus:ring-red-200"
+                          placeholder="Explique por qué se rechaza la solicitud..."></textarea>
+                <div class="mt-3 flex gap-3">
+                    <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">
+                        Confirmar rechazo
+                    </button>
+                </div>
+            </form>
+        </details>
+        {% endif %}
+
+        {% if tramite.estado == 'EN_REVISION' and user.puede_aprobar %}
+        <details class="mt-4 no-print">
+            <summary class="inline-flex cursor-pointer list-none items-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
+                Regresar a Pendiente
+            </summary>
+            <form method="post" action="{% url 'tramites:regresar' id=tramite.uuid %}" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
+                {% csrf_token %}
+                <label for="nota-regreso-revision" class="block text-sm font-medium text-amber-900 mb-2">Nota de regreso (opcional)</label>
+                <textarea id="nota-regreso-revision"
+                          name="nota_regreso"
+                          rows="3"
+                          class="w-full rounded-lg border border-amber-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                          placeholder="Explique por qué vuelve a pendiente..."></textarea>
+                <div class="mt-3 flex gap-3">
+                    <button type="submit" class="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700">
+                        Confirmar regreso
+                    </button>
+                </div>
+            </form>
+        </details>
+        {% endif %}
+
+        {% if tramite.estado == 'APROBADO' and user.puede_aprobar %}
+        <details class="mt-4 no-print">
+            <summary class="inline-flex cursor-pointer list-none items-center rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
+                Regresar a En revisión
+            </summary>
+            <form method="post" action="{% url 'tramites:regresar' id=tramite.uuid %}" class="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4">
+                {% csrf_token %}
+                <label for="nota-regreso-aprobado" class="block text-sm font-medium text-amber-900 mb-2">Nota de regreso (opcional)</label>
+                <textarea id="nota-regreso-aprobado"
+                          name="nota_regreso"
+                          rows="3"
+                          class="w-full rounded-lg border border-amber-200 px-3 py-2 text-sm text-gray-700 focus:border-amber-400 focus:ring-2 focus:ring-amber-200"
+                          placeholder="Explique por qué vuelve a revisión..."></textarea>
+                <div class="mt-3 flex gap-3">
+                    <button type="submit" class="bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-700">
+                        Confirmar regreso
+                    </button>
+                </div>
+            </form>
+        </details>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,1056 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Editar Documento - {{ tramite.numero_referencia|default:tramite.uuid }} - SAGEC{% endblock %}
+
+{% block extra_head %}
+{# Import map para TipTap v2 via esm.sh (ES Modules, sin npm/node) #}
+<script type="importmap">
+{
+  "imports": {
+    "@tiptap/core": "https://esm.sh/@tiptap/core@2.27.2",
+    "@tiptap/starter-kit": "https://esm.sh/@tiptap/starter-kit@2.27.2",
+    "@tiptap/extension-paragraph": "https://esm.sh/@tiptap/extension-paragraph@2.27.2",
+    "@tiptap/extension-underline": "https://esm.sh/@tiptap/extension-underline@2.27.2",
+    "@tiptap/extension-text-align": "https://esm.sh/@tiptap/extension-text-align@2.27.2",
+    "@tiptap/extension-text-style": "https://esm.sh/@tiptap/extension-text-style@2.27.2",
+    "@tiptap/extension-color": "https://esm.sh/@tiptap/extension-color@2.27.2",
+    "@tiptap/extension-highlight": "https://esm.sh/@tiptap/extension-highlight@2.27.2",
+    "@tiptap/extension-font-family": "https://esm.sh/@tiptap/extension-font-family@2.27.2",
+    "@tiptap/extension-table": "https://esm.sh/@tiptap/extension-table@2.27.2",
+    "@tiptap/extension-table-row": "https://esm.sh/@tiptap/extension-table-row@2.27.2",
+    "@tiptap/extension-table-cell": "https://esm.sh/@tiptap/extension-table-cell@2.27.2",
+    "@tiptap/extension-table-header": "https://esm.sh/@tiptap/extension-table-header@2.27.2",
+    "@tiptap/extension-subscript": "https://esm.sh/@tiptap/extension-subscript@2.27.2",
+    "@tiptap/extension-superscript": "https://esm.sh/@tiptap/extension-superscript@2.27.2"
+  }
+}
+</script>
+
+<style>
+/* ─── Editor TipTap ─── */
+#editor .ProseMirror {
+    font-family: Arial, sans-serif;
+    font-size: 10pt;
+    line-height: 1.4;
+    color: #000;
+    padding: 0.3cm 0.3cm 0.3cm 0.5cm;
+    outline: none;
+    min-height: 18cm;
+    border: 1px dashed #cbd5e1;
+    border-radius: 4px;
+}
+#editor .ProseMirror:focus { border-color: #93c5fd; }
+#editor .ProseMirror p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    color: #aaa;
+    pointer-events: none;
+    float: left;
+    height: 0;
+}
+
+/* Estilos de documento (replica el PDF) */
+#editor .ProseMirror .document-header { margin-bottom: 0.6cm; }
+#editor .ProseMirror .fecha-doc { margin-bottom: 0.2cm; }
+#editor .ProseMirror .referencia { font-weight: bold; }
+#editor .ProseMirror .destinatario { margin-bottom: 0.6cm; line-height: 1.3; }
+#editor .ProseMirror .destinatario-nombre { font-weight: bold; text-transform: uppercase; }
+#editor .ProseMirror .destinatario-institucion { font-weight: bold; }
+#editor .ProseMirror .destinatario-esd { margin-top: 0.2cm; letter-spacing: 0.3em; }
+#editor .ProseMirror .saludo { margin-bottom: 0.4cm; }
+#editor .ProseMirror .cuerpo { text-align: justify; line-height: 1.4; }
+#editor .ProseMirror .parrafo { margin-bottom: 0.4cm; }
+#editor .ProseMirror .empresa-bloque { page-break-inside: avoid; }
+#editor .ProseMirror .empresa-nombre-header { font-weight: bold; text-transform: uppercase; margin-bottom: 0.1cm; }
+#editor .ProseMirror .firma-bloque { break-inside: avoid; }
+#editor .ProseMirror .atentamente { margin-top: 0.6cm; margin-bottom: 0.2cm; }
+#editor .ProseMirror .firma-espacio { height: 2.2cm; }
+#editor .ProseMirror .firma-info { line-height: 1.1; }
+#editor .ProseMirror .firma-nombre { font-weight: bold; font-size: 10.5pt; }
+#editor .ProseMirror .firma-cargo { font-size: 9.5pt; }
+#editor .ProseMirror .firma-iniciales { margin-top: 0.4cm; font-size: 8pt; color: #666; }
+
+/* Tablas en el editor */
+#editor .ProseMirror table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.4cm 0;
+    table-layout: fixed;
+}
+#editor .ProseMirror td, #editor .ProseMirror th {
+    border: 1px solid #999;
+    padding: 4px 8px;
+    vertical-align: top;
+    position: relative;
+    box-sizing: border-box;
+}
+#editor .ProseMirror th { font-weight: bold; background-color: #f3f4f6; }
+#editor .ProseMirror .selectedCell::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(37, 99, 235, 0.12);
+    pointer-events: none;
+}
+
+/* Salto de página */
+.page-break-line {
+    position: absolute; left: 0; right: 0; height: 0;
+    border-top: 2px dashed #3b82f6; pointer-events: none; z-index: 10;
+}
+.page-break-line::after {
+    content: attr(data-label);
+    position: absolute; right: 8px; top: -10px;
+    font-size: 9px; color: #3b82f6; background: white;
+    padding: 0 4px; font-family: Arial, sans-serif;
+}
+
+/* ─── Toolbar ─── */
+.toolbar-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 4px 7px; border-radius: 4px; border: 1px solid transparent;
+    color: #374151; cursor: pointer; background: transparent;
+    font-size: 13px; white-space: nowrap; min-width: 28px; height: 28px;
+    transition: background 0.1s, border-color 0.1s;
+    user-select: none;
+}
+.toolbar-btn:hover { background: #f3f4f6; border-color: #d1d5db; }
+.toolbar-btn.active { background: #dbeafe; color: #1d4ed8; border-color: #93c5fd; }
+.toolbar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.toolbar-divider { width: 1px; height: 22px; background: #d1d5db; margin: 0 3px; flex-shrink: 0; }
+.toolbar-select {
+    height: 28px; padding: 0 4px; border: 1px solid #d1d5db; border-radius: 4px;
+    background: white; color: #374151; font-size: 12px; cursor: pointer;
+}
+.toolbar-select:focus { outline: none; border-color: #93c5fd; }
+.toolbar-label { font-size: 10px; color: #9ca3af; font-weight: 500; white-space: nowrap; }
+
+/* Color buttons */
+.color-btn-wrap {
+    position: relative; display: inline-flex; flex-direction: column;
+    align-items: center; cursor: pointer;
+}
+.color-btn-main {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 2px 5px; border-radius: 4px 0 0 4px; border: 1px solid transparent;
+    color: #374151; cursor: pointer; background: transparent;
+    font-size: 13px; height: 28px; min-width: 22px;
+    transition: background 0.1s; user-select: none;
+}
+.color-btn-main:hover { background: #f3f4f6; border-color: #d1d5db; }
+.color-btn-arrow {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 28px; border: 1px solid transparent;
+    border-left: none; border-radius: 0 4px 4px 0;
+    background: transparent; cursor: pointer; color: #6b7280;
+    transition: background 0.1s; user-select: none;
+}
+.color-btn-arrow:hover { background: #f3f4f6; border-color: #d1d5db; }
+.color-indicator {
+    display: block; width: 100%; height: 3px;
+    border-radius: 0 0 2px 2px; margin-top: 1px;
+}
+
+/* Color popup */
+.color-popup {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 200;
+    background: white; border: 1px solid #d1d5db; border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 8px;
+    min-width: 160px; display: none;
+}
+.color-popup.open { display: block; }
+.color-grid {
+    display: grid; grid-template-columns: repeat(5, 24px);
+    gap: 3px; margin-bottom: 6px;
+}
+.color-swatch {
+    width: 24px; height: 24px; border-radius: 3px; cursor: pointer;
+    border: 2px solid transparent; transition: border-color 0.1s;
+}
+.color-swatch:hover { border-color: #2563eb; }
+.color-custom-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 2px; border-top: 1px solid #e5e7eb; margin-top: 4px;
+    font-size: 11px; color: #374151; cursor: pointer;
+}
+.color-custom-row:hover { background: #f9fafb; border-radius: 4px; }
+
+/* Table grid picker */
+.table-popup {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 200;
+    background: white; border: 1px solid #d1d5db; border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 8px;
+    display: none;
+}
+.table-popup.open { display: block; }
+.table-grid { display: grid; grid-template-columns: repeat(6, 22px); gap: 2px; }
+.table-cell {
+    width: 22px; height: 22px; border: 1px solid #d1d5db;
+    border-radius: 2px; cursor: pointer; background: white;
+    transition: background 0.1s, border-color 0.1s;
+}
+.table-cell.hover { background: #dbeafe; border-color: #3b82f6; }
+.table-size-label {
+    text-align: center; font-size: 11px; color: #374151;
+    margin-top: 4px; height: 16px; font-weight: 500;
+}
+
+/* Table context controls */
+#table-ctx { display: none; }
+#table-ctx.visible { display: flex; }
+
+/* Find/Replace panel */
+#find-replace-panel {
+    background: #f8fafc; border-x: 1px solid #d1d5db; border-bottom: 1px solid #d1d5db;
+    padding: 10px 16px; display: none;
+}
+#find-replace-panel.open { display: block; }
+.find-input {
+    border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 10px;
+    font-size: 13px; outline: none; width: 200px;
+}
+.find-input:focus { border-color: #3b82f6; }
+.find-count { font-size: 11px; color: #6b7280; white-space: nowrap; }
+</style>
+
+{# Contenido inicial en JSON para carga segura por JS (json_script escapa </script> y & correctamente) #}
+{{ contenido_editable|json_script:"initial-content" }}
+
+<script type="module">
+import { Editor, Extension, Node, mergeAttributes } from '@tiptap/core';
+import StarterKit from '@tiptap/starter-kit';
+import Paragraph from '@tiptap/extension-paragraph';
+import Underline from '@tiptap/extension-underline';
+import TextAlign from '@tiptap/extension-text-align';
+import TextStyle from '@tiptap/extension-text-style';
+import Color from '@tiptap/extension-color';
+import Highlight from '@tiptap/extension-highlight';
+import FontFamily from '@tiptap/extension-font-family';
+import Table from '@tiptap/extension-table';
+import TableRow from '@tiptap/extension-table-row';
+import TableCell from '@tiptap/extension-table-cell';
+import TableHeader from '@tiptap/extension-table-header';
+import Subscript from '@tiptap/extension-subscript';
+import Superscript from '@tiptap/extension-superscript';
+
+// ── Extensión: Párrafo personalizado que preserva atributos class/style ──
+const CustomParagraph = Paragraph.extend({
+    addAttributes() {
+        return {
+            class: {
+                default: null,
+                parseHTML: el => el.getAttribute('class') || null,
+                renderHTML: attrs => attrs.class ? { class: attrs.class } : {},
+            },
+            style: {
+                default: null,
+                parseHTML: el => el.getAttribute('style') || null,
+                renderHTML: attrs => attrs.style ? { style: attrs.style } : {},
+            },
+        };
+    },
+});
+
+// ── Extensión: GenericDiv para preservar <div class="..."> del documento ──
+const GenericDiv = Node.create({
+    name: 'genericDiv',
+    group: 'block',
+    content: 'block*',
+    defining: true,
+    addAttributes() {
+        return {
+            class: {
+                default: null,
+                parseHTML: el => el.getAttribute('class') || null,
+                renderHTML: attrs => attrs.class ? { class: attrs.class } : {},
+            },
+            style: {
+                default: null,
+                parseHTML: el => el.getAttribute('style') || null,
+                renderHTML: attrs => attrs.style ? { style: attrs.style } : {},
+            },
+        };
+    },
+    parseHTML() { return [{ tag: 'div' }]; },
+    renderHTML({ HTMLAttributes }) {
+        return ['div', mergeAttributes(HTMLAttributes), 0];
+    },
+});
+
+// ── Extensión: Tamaño de fuente (extiende TextStyle) ──
+const FontSize = Extension.create({
+    name: 'fontSize',
+    addOptions() { return { types: ['textStyle'] }; },
+    addGlobalAttributes() {
+        return [{
+            types: this.options.types,
+            attributes: {
+                fontSize: {
+                    default: null,
+                    parseHTML: el => el.style.fontSize || null,
+                    renderHTML: attrs => attrs.fontSize ? { style: `font-size: ${attrs.fontSize}` } : {},
+                },
+            },
+        }];
+    },
+    addCommands() {
+        return {
+            setFontSize: size => ({ chain }) =>
+                chain().setMark('textStyle', { fontSize: size }).run(),
+            unsetFontSize: () => ({ chain }) =>
+                chain().setMark('textStyle', { fontSize: null }).removeEmptyTextStyle().run(),
+        };
+    },
+});
+
+// ── Extensión: Interlineado ──
+const LineHeight = Extension.create({
+    name: 'lineHeight',
+    addOptions() { return { types: ['paragraph', 'heading'] }; },
+    addGlobalAttributes() {
+        return [{
+            types: this.options.types,
+            attributes: {
+                lineHeight: {
+                    default: null,
+                    parseHTML: el => el.style.lineHeight || null,
+                    renderHTML: attrs => attrs.lineHeight ? { style: `line-height: ${attrs.lineHeight}` } : {},
+                },
+            },
+        }];
+    },
+    addCommands() {
+        return {
+            setLineHeight: lh => ({ commands }) =>
+                this.options.types.every(t => commands.updateAttributes(t, { lineHeight: lh })),
+            unsetLineHeight: () => ({ commands }) =>
+                this.options.types.every(t => commands.resetAttributes(t, 'lineHeight')),
+        };
+    },
+});
+
+// ── Extensión: Sangría con Tab/Shift-Tab ──
+const Indent = Extension.create({
+    name: 'indent',
+    addOptions() { return { types: ['paragraph', 'heading', 'genericDiv'], step: 40, max: 320 }; },
+    addGlobalAttributes() {
+        return [{
+            types: this.options.types,
+            attributes: {
+                indent: {
+                    default: 0,
+                    parseHTML: el => {
+                        const ml = parseInt(el.style.marginLeft) || 0;
+                        return Math.floor(ml / this.options.step);
+                    },
+                    renderHTML: attrs => {
+                        if (!attrs.indent || attrs.indent <= 0) return {};
+                        return { style: `margin-left: ${attrs.indent * this.options.step}px` };
+                    },
+                },
+            },
+        }];
+    },
+    addCommands() {
+        return {
+            indent: () => ({ tr, state, dispatch }) => {
+                const { selection } = state;
+                const { from, to } = selection;
+                let changed = false;
+                state.doc.nodesBetween(from, to, (node, pos) => {
+                    if (this.options.types.includes(node.type.name)) {
+                        const cur = node.attrs.indent || 0;
+                        if (cur * this.options.step < this.options.max) {
+                            tr.setNodeMarkup(pos, null, { ...node.attrs, indent: cur + 1 });
+                            changed = true;
+                        }
+                    }
+                });
+                if (changed && dispatch) dispatch(tr);
+                return changed;
+            },
+            outdent: () => ({ tr, state, dispatch }) => {
+                const { selection } = state;
+                const { from, to } = selection;
+                let changed = false;
+                state.doc.nodesBetween(from, to, (node, pos) => {
+                    if (this.options.types.includes(node.type.name)) {
+                        const cur = node.attrs.indent || 0;
+                        if (cur > 0) {
+                            tr.setNodeMarkup(pos, null, { ...node.attrs, indent: cur - 1 });
+                            changed = true;
+                        }
+                    }
+                });
+                if (changed && dispatch) dispatch(tr);
+                return changed;
+            },
+        };
+    },
+    addKeyboardShortcuts() {
+        return {
+            'Tab': () => this.editor.commands.indent(),
+            'Shift-Tab': () => this.editor.commands.outdent(),
+        };
+    },
+});
+
+// ── Estado de búsqueda/reemplazo ──
+let findMatches = [];
+let findCurrent = 0;
+
+// ── Inicialización del editor ──
+const initialContent = JSON.parse(document.getElementById('initial-content').textContent);
+const form = document.getElementById('form-editar-pdf');
+const hidden = document.getElementById('contenido-hidden');
+const pageWrapper = document.getElementById('page-wrapper');
+
+const editor = new Editor({
+    element: document.getElementById('editor'),
+    extensions: [
+        StarterKit.configure({ paragraph: false, code: false, codeBlock: false, heading: { levels: [1, 2, 3] } }),
+        CustomParagraph,
+        GenericDiv,
+        Underline,
+        TextAlign.configure({ types: ['heading', 'paragraph', 'genericDiv'] }),
+        TextStyle,
+        Color,
+        Highlight.configure({ multicolor: true }),
+        FontFamily,
+        FontSize,
+        LineHeight,
+        Indent,
+        Table.configure({ resizable: true }),
+        TableRow,
+        TableCell,
+        TableHeader,
+        Subscript,
+        Superscript,
+    ],
+    content: initialContent,
+    editorProps: {
+        attributes: {
+            spellcheck: 'true',
+            lang: 'es',
+        },
+        transformPastedHTML(html) {
+            // Eliminar estilos propietarios de MS Word / Google Docs
+            return html
+                .replace(/\s*mso-[a-z-]+\s*:[^;"]+(;|(?="))/gi, '')
+                .replace(/\s*class="Mso[^"]*"/gi, '');
+        },
+    },
+    onUpdate: () => {
+        actualizarSaltoPagina();
+        actualizarEstadoBotones();
+        actualizarContextoTabla();
+    },
+    onSelectionUpdate: () => {
+        actualizarEstadoBotones();
+        actualizarContextoTabla();
+    },
+});
+
+// Submit: enviar HTML del editor al input hidden
+form.addEventListener('submit', () => { hidden.value = editor.getHTML(); });
+
+// ══════════════════════════════════════════════════════════
+//  TOOLBAR — Estado activo de botones
+// ══════════════════════════════════════════════════════════
+function actualizarEstadoBotones() {
+    const marks = {
+        'btn-bold':      () => editor.isActive('bold'),
+        'btn-italic':    () => editor.isActive('italic'),
+        'btn-underline': () => editor.isActive('underline'),
+        'btn-strike':    () => editor.isActive('strike'),
+        'btn-sub':       () => editor.isActive('subscript'),
+        'btn-sup':       () => editor.isActive('superscript'),
+        'btn-al-l':      () => editor.isActive({ textAlign: 'left' }),
+        'btn-al-c':      () => editor.isActive({ textAlign: 'center' }),
+        'btn-al-r':      () => editor.isActive({ textAlign: 'right' }),
+        'btn-al-j':      () => editor.isActive({ textAlign: 'justify' }),
+        'btn-ul':        () => editor.isActive('bulletList'),
+        'btn-ol':        () => editor.isActive('orderedList'),
+        'btn-h1':        () => editor.isActive('heading', { level: 1 }),
+        'btn-h2':        () => editor.isActive('heading', { level: 2 }),
+        'btn-h3':        () => editor.isActive('heading', { level: 3 }),
+    };
+    for (const [id, fn] of Object.entries(marks)) {
+        document.getElementById(id)?.classList.toggle('active', fn());
+    }
+
+    // Actualizar selector de fuente
+    const ff = editor.getAttributes('textStyle').fontFamily;
+    const selFF = document.getElementById('sel-font-family');
+    if (selFF && ff) selFF.value = ff;
+
+    // Actualizar selector de tamaño
+    const fs = editor.getAttributes('textStyle').fontSize;
+    const selFS = document.getElementById('sel-font-size');
+    if (selFS && fs) selFS.value = fs;
+
+    // Actualizar selector de interlineado
+    const lh = editor.getAttributes('paragraph').lineHeight || editor.getAttributes('heading').lineHeight;
+    const selLH = document.getElementById('sel-line-height');
+    if (selLH && lh) selLH.value = lh;
+
+    // Undo/Redo
+    const btnUndo = document.getElementById('btn-undo');
+    const btnRedo = document.getElementById('btn-redo');
+    if (btnUndo) btnUndo.disabled = !editor.can().undo();
+    if (btnRedo) btnRedo.disabled = !editor.can().redo();
+}
+
+// ══════════════════════════════════════════════════════════
+//  CONTEXTO DE TABLA (botones visibles solo dentro de tabla)
+// ══════════════════════════════════════════════════════════
+function actualizarContextoTabla() {
+    const inTable = editor.isActive('table');
+    document.getElementById('table-ctx')?.classList.toggle('visible', inTable);
+    const insertBtn = document.getElementById('table-insert-wrap');
+    if (insertBtn) insertBtn.style.display = inTable ? 'none' : '';
+}
+
+// ══════════════════════════════════════════════════════════
+//  BINDING DE BOTONES DEL TOOLBAR
+// ══════════════════════════════════════════════════════════
+function bindBtn(id, fn) {
+    document.getElementById(id)?.addEventListener('click', () => { fn(); editor.commands.focus(); });
+}
+
+bindBtn('btn-bold',      () => editor.chain().focus().toggleBold().run());
+bindBtn('btn-italic',    () => editor.chain().focus().toggleItalic().run());
+bindBtn('btn-underline', () => editor.chain().focus().toggleUnderline().run());
+bindBtn('btn-strike',    () => editor.chain().focus().toggleStrike().run());
+bindBtn('btn-sub',       () => editor.chain().focus().toggleSubscript().run());
+bindBtn('btn-sup',       () => editor.chain().focus().toggleSuperscript().run());
+bindBtn('btn-al-l',      () => editor.chain().focus().setTextAlign('left').run());
+bindBtn('btn-al-c',      () => editor.chain().focus().setTextAlign('center').run());
+bindBtn('btn-al-r',      () => editor.chain().focus().setTextAlign('right').run());
+bindBtn('btn-al-j',      () => editor.chain().focus().setTextAlign('justify').run());
+bindBtn('btn-ul',        () => editor.chain().focus().toggleBulletList().run());
+bindBtn('btn-ol',        () => editor.chain().focus().toggleOrderedList().run());
+bindBtn('btn-h1',        () => editor.chain().focus().toggleHeading({ level: 1 }).run());
+bindBtn('btn-h2',        () => editor.chain().focus().toggleHeading({ level: 2 }).run());
+bindBtn('btn-h3',        () => editor.chain().focus().toggleHeading({ level: 3 }).run());
+bindBtn('btn-hr',        () => editor.chain().focus().setHorizontalRule().run());
+bindBtn('btn-undo',      () => editor.chain().focus().undo().run());
+bindBtn('btn-redo',      () => editor.chain().focus().redo().run());
+bindBtn('btn-clear',     () => editor.chain().focus().clearNodes().unsetAllMarks().run());
+
+// Selectores
+document.getElementById('sel-font-family')?.addEventListener('change', e => {
+    editor.chain().focus().setFontFamily(e.target.value).run();
+});
+document.getElementById('sel-font-size')?.addEventListener('change', e => {
+    editor.chain().focus().setFontSize(e.target.value).run();
+});
+document.getElementById('sel-line-height')?.addEventListener('change', e => {
+    editor.chain().focus().setLineHeight(e.target.value).run();
+});
+
+bindBtn('btn-indent-inc', () => editor.commands.indent());
+bindBtn('btn-indent-dec', () => editor.commands.outdent());
+
+// Tabla — controles contextuales
+bindBtn('btn-add-row-after',   () => editor.chain().focus().addRowAfter().run());
+bindBtn('btn-add-row-before',  () => editor.chain().focus().addRowBefore().run());
+bindBtn('btn-del-row',         () => editor.chain().focus().deleteRow().run());
+bindBtn('btn-add-col-after',   () => editor.chain().focus().addColumnAfter().run());
+bindBtn('btn-add-col-before',  () => editor.chain().focus().addColumnBefore().run());
+bindBtn('btn-del-col',         () => editor.chain().focus().deleteColumn().run());
+bindBtn('btn-merge-cells',     () => editor.chain().focus().mergeCells().run());
+bindBtn('btn-split-cell',      () => editor.chain().focus().splitCell().run());
+bindBtn('btn-del-table',       () => editor.chain().focus().deleteTable().run());
+
+// ══════════════════════════════════════════════════════════
+//  COLOR DE TEXTO
+// ══════════════════════════════════════════════════════════
+const TEXT_COLORS = ['#000000','#1e3a8a','#991b1b','#14532d','#374151','#7c3aed',
+                     '#2563eb','#dc2626','#16a34a','#6b7280','#ffffff','#f59e0b',
+                     '#ec4899','#0891b2','#b45309'];
+
+function setupColorPicker(popupId, barId, applyFn, removeFn, colors, inputId) {
+    const popup = document.getElementById(popupId);
+    const bar = document.getElementById(barId);
+    const input = document.getElementById(inputId);
+    if (!popup) return;
+
+    // Swatches
+    const grid = popup.querySelector('.color-grid');
+    colors.forEach(c => {
+        const swatch = document.createElement('button');
+        swatch.type = 'button';
+        swatch.className = 'color-swatch';
+        swatch.style.background = c;
+        swatch.title = c;
+        swatch.addEventListener('click', () => {
+            applyFn(c);
+            if (bar) bar.style.background = c;
+            popup.classList.remove('open');
+            editor.commands.focus();
+        });
+        grid.appendChild(swatch);
+    });
+
+    // Input de color personalizado
+    if (input) {
+        input.addEventListener('input', e => {
+            applyFn(e.target.value);
+            if (bar) bar.style.background = e.target.value;
+        });
+        input.addEventListener('change', () => {
+            popup.classList.remove('open');
+            editor.commands.focus();
+        });
+    }
+
+    // Botón "Sin color" / remover
+    const removeBtn = popup.querySelector('.color-remove');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+            removeFn();
+            if (bar) bar.style.background = 'transparent';
+            popup.classList.remove('open');
+            editor.commands.focus();
+        });
+    }
+}
+
+// Abrir/cerrar popup de color de texto
+document.getElementById('btn-color-text-arrow')?.addEventListener('click', e => {
+    e.stopPropagation();
+    document.getElementById('color-text-popup')?.classList.toggle('open');
+    document.getElementById('color-hl-popup')?.classList.remove('open');
+});
+// Aplicar color actual al hacer click en el botón principal
+document.getElementById('btn-color-text-main')?.addEventListener('click', () => {
+    const color = document.getElementById('color-text-input')?.value || '#000000';
+    editor.chain().focus().setColor(color).run();
+});
+
+setupColorPicker(
+    'color-text-popup', 'color-text-bar',
+    c => editor.chain().focus().setColor(c).run(),
+    () => editor.chain().focus().unsetColor().run(),
+    TEXT_COLORS, 'color-text-input'
+);
+
+// Color de resaltado
+const HL_COLORS = ['#FFF9C4','#C8E6C9','#BBDEFB','#FCE4EC','#F3E5F5',
+                   '#FFE0B2','#E0F7FA','#F1F8E9','#FFF8E1','#EDE7F6'];
+
+document.getElementById('btn-color-hl-arrow')?.addEventListener('click', e => {
+    e.stopPropagation();
+    document.getElementById('color-hl-popup')?.classList.toggle('open');
+    document.getElementById('color-text-popup')?.classList.remove('open');
+});
+document.getElementById('btn-color-hl-main')?.addEventListener('click', () => {
+    const color = document.getElementById('color-hl-input')?.value || '#FFFF00';
+    editor.chain().focus().setHighlight({ color }).run();
+});
+
+setupColorPicker(
+    'color-hl-popup', 'color-hl-bar',
+    c => editor.chain().focus().setHighlight({ color: c }).run(),
+    () => editor.chain().focus().unsetHighlight().run(),
+    HL_COLORS, 'color-hl-input'
+);
+
+// Cerrar popups al hacer click afuera
+document.addEventListener('click', e => {
+    if (!e.target.closest('#color-text-wrap')) {
+        document.getElementById('color-text-popup')?.classList.remove('open');
+    }
+    if (!e.target.closest('#color-hl-wrap')) {
+        document.getElementById('color-hl-popup')?.classList.remove('open');
+    }
+    if (!e.target.closest('#table-insert-wrap')) {
+        document.getElementById('table-popup')?.classList.remove('open');
+    }
+});
+
+// ══════════════════════════════════════════════════════════
+//  SELECTOR DE TABLA (grid 6×6)
+// ══════════════════════════════════════════════════════════
+(function setupTableGrid() {
+    const popup = document.getElementById('table-popup');
+    const grid  = document.getElementById('table-grid');
+    const label = document.getElementById('table-size-label');
+    const btn   = document.getElementById('btn-table-open');
+    if (!popup || !grid) return;
+
+    btn?.addEventListener('click', e => {
+        e.stopPropagation();
+        popup.classList.toggle('open');
+    });
+
+    let selR = 0, selC = 0;
+    for (let r = 1; r <= 6; r++) {
+        for (let c = 1; c <= 6; c++) {
+            const cell = document.createElement('div');
+            cell.className = 'table-cell';
+            cell.dataset.r = r;
+            cell.dataset.c = c;
+            cell.addEventListener('mouseenter', () => {
+                selR = r; selC = c;
+                grid.querySelectorAll('.table-cell').forEach(el => {
+                    el.classList.toggle('hover', +el.dataset.r <= r && +el.dataset.c <= c);
+                });
+                if (label) label.textContent = `${r} × ${c}`;
+            });
+            cell.addEventListener('click', () => {
+                editor.chain().focus().insertTable({ rows: r, cols: c, withHeaderRow: true }).run();
+                popup.classList.remove('open');
+            });
+            grid.appendChild(cell);
+        }
+    }
+    grid.addEventListener('mouseleave', () => {
+        grid.querySelectorAll('.table-cell').forEach(el => el.classList.remove('hover'));
+        if (label) label.textContent = '';
+    });
+})();
+
+// ══════════════════════════════════════════════════════════
+//  BUSCAR Y REEMPLAZAR
+// ══════════════════════════════════════════════════════════
+document.getElementById('btn-find-replace')?.addEventListener('click', () => {
+    const panel = document.getElementById('find-replace-panel');
+    if (!panel) return;
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) {
+        document.getElementById('find-input')?.focus();
+    }
+});
+document.getElementById('btn-find-close')?.addEventListener('click', () => {
+    document.getElementById('find-replace-panel')?.classList.remove('open');
+    findMatches = []; findCurrent = 0;
+    actualizarContadorFind();
+});
+
+function buscarEnDocumento(term) {
+    findMatches = [];
+    if (!term) return;
+    const doc = editor.state.doc;
+    const regex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    doc.descendants((node, pos) => {
+        if (node.isText) {
+            let m;
+            while ((m = regex.exec(node.text)) !== null) {
+                findMatches.push({ from: pos + m.index, to: pos + m.index + m[0].length });
+            }
+        }
+    });
+    findCurrent = findMatches.length > 0 ? 0 : -1;
+}
+
+function actualizarContadorFind() {
+    const el = document.getElementById('find-count');
+    if (!el) return;
+    if (findMatches.length === 0) { el.textContent = 'Sin resultados'; return; }
+    el.textContent = `${findCurrent + 1} de ${findMatches.length}`;
+}
+
+function irAMatch(idx) {
+    if (findMatches.length === 0) return;
+    findCurrent = ((idx % findMatches.length) + findMatches.length) % findMatches.length;
+    const { from, to } = findMatches[findCurrent];
+    editor.commands.setTextSelection({ from, to });
+    editor.commands.scrollIntoView();
+    actualizarContadorFind();
+}
+
+document.getElementById('find-input')?.addEventListener('input', e => {
+    buscarEnDocumento(e.target.value);
+    irAMatch(0);
+});
+document.getElementById('btn-find-prev')?.addEventListener('click', () => irAMatch(findCurrent - 1));
+document.getElementById('btn-find-next')?.addEventListener('click', () => irAMatch(findCurrent + 1));
+
+document.getElementById('btn-replace-one')?.addEventListener('click', () => {
+    if (findMatches.length === 0) return;
+    const { from, to } = findMatches[findCurrent];
+    const replacement = document.getElementById('replace-input')?.value || '';
+    editor.chain().focus().setTextSelection({ from, to }).insertContent(replacement).run();
+    buscarEnDocumento(document.getElementById('find-input')?.value || '');
+    irAMatch(findCurrent);
+});
+
+document.getElementById('btn-replace-all')?.addEventListener('click', () => {
+    const term = document.getElementById('find-input')?.value || '';
+    const replacement = document.getElementById('replace-input')?.value || '';
+    if (!term) return;
+    buscarEnDocumento(term);
+    // Reemplazar de atrás hacia adelante para mantener posiciones válidas
+    const matches = [...findMatches].reverse();
+    matches.forEach(({ from, to }) => {
+        editor.chain().setTextSelection({ from, to }).insertContent(replacement).run();
+    });
+    buscarEnDocumento(term);
+    actualizarContadorFind();
+});
+
+// ══════════════════════════════════════════════════════════
+//  VISUALIZACIÓN DE SALTOS DE PÁGINA
+// ══════════════════════════════════════════════════════════
+const CM_TO_PX = 37.795;
+const PAGE_HEIGHT_PX = (27.94 - 1.8 - 2.8) * CM_TO_PX; // ~874px
+
+function actualizarSaltoPagina() {
+    pageWrapper?.querySelectorAll('.page-break-line').forEach(el => el.remove());
+    if (!pageWrapper) return;
+    const wrapperH = pageWrapper.scrollHeight;
+    let top = PAGE_HEIGHT_PX, pageNum = 1;
+    while (top < wrapperH) {
+        const line = document.createElement('div');
+        line.className = 'page-break-line';
+        line.style.top = `${top}px`;
+        line.dataset.label = `Pág. ${pageNum + 1}`;
+        pageWrapper.appendChild(line);
+        top += PAGE_HEIGHT_PX;
+        pageNum++;
+    }
+}
+
+actualizarSaltoPagina();
+pageWrapper?.querySelectorAll('img').forEach(img => img.addEventListener('load', actualizarSaltoPagina));
+actualizarEstadoBotones();
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <!-- Cabecera -->
+    <div class="flex justify-between items-center mb-4">
+        <h1 class="text-2xl font-bold text-gray-800">Editar Documento</h1>
+        <a href="{% url 'tramites:detalle' id=tramite.uuid %}" class="text-blue-600 hover:underline text-sm">&larr; Volver al detalle</a>
+    </div>
+
+    <form method="post" id="form-editar-pdf">
+        {% csrf_token %}
+        <input type="hidden" name="contenido_editado" id="contenido-hidden">
+
+        <!-- ════════════════════ TOOLBAR RIBBON ════════════════════ -->
+        <div class="bg-white border border-gray-300 rounded-t-lg px-3 py-2 flex flex-wrap items-center gap-1">
+
+            <!-- Historial -->
+            <button type="button" id="btn-undo" class="toolbar-btn" title="Deshacer (Ctrl+Z)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/></svg>
+            </button>
+            <button type="button" id="btn-redo" class="toolbar-btn" title="Rehacer (Ctrl+Y)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10H11a5 5 0 00-5 5v2M21 10l-4-4M21 10l-4 4"/></svg>
+            </button>
+            <div class="toolbar-divider"></div>
+
+            <!-- Fuente -->
+            <select id="sel-font-family" class="toolbar-select" style="width:110px" title="Fuente">
+                <option value="Arial, sans-serif">Arial</option>
+                <option value="'Times New Roman', serif">Times New Roman</option>
+                <option value="'Courier New', monospace">Courier New</option>
+                <option value="Georgia, serif">Georgia</option>
+                <option value="Verdana, sans-serif">Verdana</option>
+                <option value="Calibri, sans-serif">Calibri</option>
+            </select>
+            <select id="sel-font-size" class="toolbar-select" style="width:58px" title="Tamaño de fuente">
+                <option value="8pt">8</option>
+                <option value="9pt">9</option>
+                <option value="10pt" selected>10</option>
+                <option value="10.5pt">10.5</option>
+                <option value="11pt">11</option>
+                <option value="12pt">12</option>
+                <option value="14pt">14</option>
+                <option value="16pt">16</option>
+                <option value="18pt">18</option>
+                <option value="20pt">20</option>
+                <option value="24pt">24</option>
+                <option value="28pt">28</option>
+                <option value="36pt">36</option>
+            </select>
+            <div class="toolbar-divider"></div>
+
+            <!-- Formato de texto -->
+            <button type="button" id="btn-bold"      class="toolbar-btn font-bold"    title="Negrita (Ctrl+B)">B</button>
+            <button type="button" id="btn-italic"    class="toolbar-btn italic"       title="Cursiva (Ctrl+I)">I</button>
+            <button type="button" id="btn-underline" class="toolbar-btn underline"    title="Subrayado (Ctrl+U)">U</button>
+            <button type="button" id="btn-strike"    class="toolbar-btn line-through" title="Tachado">S</button>
+            <button type="button" id="btn-sub" class="toolbar-btn" title="Subíndice" style="font-size:11px">x<sub style="font-size:9px">2</sub></button>
+            <button type="button" id="btn-sup" class="toolbar-btn" title="Superíndice" style="font-size:11px">x<sup style="font-size:9px">2</sup></button>
+            <div class="toolbar-divider"></div>
+
+            <!-- Color de texto -->
+            <div id="color-text-wrap" class="relative flex items-center">
+                <button type="button" id="btn-color-text-main" class="color-btn-main" title="Color de texto">
+                    <span style="font-weight:bold;font-size:13px;text-decoration:underline;text-decoration-color:var(--tc,#000)">A</span>
+                    <span id="color-text-bar" class="color-indicator" style="background:#000000;width:14px;margin-top:2px"></span>
+                </button>
+                <button type="button" id="btn-color-text-arrow" class="color-btn-arrow" title="Elegir color de texto">&#9660;</button>
+                <div id="color-text-popup" class="color-popup">
+                    <div class="color-grid"></div>
+                    <div class="color-custom-row">
+                        <input type="color" id="color-text-input" value="#000000" style="width:20px;height:20px;cursor:pointer;border:none;padding:0">
+                        <span>Color personalizado</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resaltado -->
+            <div id="color-hl-wrap" class="relative flex items-center">
+                <button type="button" id="btn-color-hl-main" class="color-btn-main" title="Resaltar texto">
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M15.78 2.34L8.22 9.9 4 14.12l2.54 2.53L4 19.5l.5.5 2.85-2.54 2.54 2.54 4.22-4.22 7.55-7.55-5.88-5.89zM7.41 18.09l-1.5-1.5 2-2 1.5 1.5-2 2z"/></svg>
+                    <span id="color-hl-bar" class="color-indicator" style="background:#FFF9C4;width:14px;margin-top:2px"></span>
+                </button>
+                <button type="button" id="btn-color-hl-arrow" class="color-btn-arrow" title="Elegir color de resaltado">&#9660;</button>
+                <div id="color-hl-popup" class="color-popup">
+                    <div class="color-grid"></div>
+                    <div class="color-custom-row">
+                        <input type="color" id="color-hl-input" value="#FFFF00" style="width:20px;height:20px;cursor:pointer;border:none;padding:0">
+                        <span>Color personalizado</span>
+                    </div>
+                    <div class="color-custom-row color-remove" title="Quitar resaltado">
+                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        <span>Sin resaltado</span>
+                    </div>
+                </div>
+            </div>
+            <div class="toolbar-divider"></div>
+
+            <!-- Alineación -->
+            <button type="button" id="btn-al-l" class="toolbar-btn" title="Alinear izquierda">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h12v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+            </button>
+            <button type="button" id="btn-al-c" class="toolbar-btn" title="Centrar">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm3 4h12v2H6V9zm-3 4h18v2H3v-2zm3 4h12v2H6v-2z"/></svg>
+            </button>
+            <button type="button" id="btn-al-r" class="toolbar-btn" title="Alinear derecha">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm6 4h12v2H9V9zm-6 4h18v2H3v-2zm6 4h12v2H9v-2z"/></svg>
+            </button>
+            <button type="button" id="btn-al-j" class="toolbar-btn" title="Justificar">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 5h18v2H3V5zm0 4h18v2H3V9zm0 4h18v2H3v-2zm0 4h12v2H3v-2z"/></svg>
+            </button>
+            <div class="toolbar-divider"></div>
+
+            <!-- Interlineado y sangría -->
+            <select id="sel-line-height" class="toolbar-select" style="width:52px" title="Interlineado">
+                <option value="1.0">1.0</option>
+                <option value="1.15">1.15</option>
+                <option value="1.4" selected>1.4</option>
+                <option value="1.5">1.5</option>
+                <option value="2.0">2.0</option>
+            </select>
+            <button type="button" id="btn-indent-dec" class="toolbar-btn" title="Reducir sangría">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M11 17h10v-2H11v2zm-8-5l4 4V8l-4 4zm0 0M3 5h18v2H3V5zm8 4h10V7H11v2zm0 4h10v-2H11v2z"/></svg>
+            </button>
+            <button type="button" id="btn-indent-inc" class="toolbar-btn" title="Aumentar sangría">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 21h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18v-2H3v2zm0-4h18V7H3v2zm0-6v2h18V3H3zm0 0M7 5v14l5-7-5-7z"/></svg>
+            </button>
+            <div class="toolbar-divider"></div>
+
+            <!-- Listas -->
+            <button type="button" id="btn-ul" class="toolbar-btn" title="Lista con viñetas">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M4 6h16v2H4V6zm0 5h16v2H4v-2zm0 5h16v2H4v-2zm-2-9.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm0 5a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm0 5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg>
+            </button>
+            <button type="button" id="btn-ol" class="toolbar-btn" title="Lista numerada">
+                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M2 17h2v.5H3v1h1v.5H2v1h3v-4H2v1zm1-9h1V4H2v1h1v3zm-1 3h1.8L2 13.1v.9h3v-1H3.2L5 10.9V10H2v1zm5-6v2h14V5H7zm0 14h14v-2H7v2zm0-6h14v-2H7v2z"/></svg>
+            </button>
+            <div class="toolbar-divider"></div>
+
+            <!-- Encabezados -->
+            <button type="button" id="btn-h1" class="toolbar-btn text-xs font-semibold" title="Encabezado 1">H1</button>
+            <button type="button" id="btn-h2" class="toolbar-btn text-xs font-semibold" title="Encabezado 2">H2</button>
+            <button type="button" id="btn-h3" class="toolbar-btn text-xs font-semibold" title="Encabezado 3">H3</button>
+            <div class="toolbar-divider"></div>
+
+            <!-- Insertar tabla -->
+            <div id="table-insert-wrap" class="relative">
+                <button type="button" id="btn-table-open" class="toolbar-btn gap-1" title="Insertar tabla">
+                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M3 3h18v18H3V3zm2 2v4h6V5H5zm0 6v4h6v-4H5zm0 6v4h6v-4H5zm8-12v4h6V5h-6zm0 6v4h6v-4h-6zm0 6v4h6v-4h-6z"/></svg>
+                    Tabla
+                </button>
+                <div id="table-popup" class="table-popup">
+                    <div id="table-grid" class="table-grid"></div>
+                    <div id="table-size-label" class="table-size-label text-gray-400"></div>
+                </div>
+            </div>
+
+            <!-- Controles de tabla (visibles solo dentro de tabla) -->
+            <div id="table-ctx" class="items-center gap-0.5">
+                <button type="button" id="btn-add-row-before" class="toolbar-btn text-xs" title="Agregar fila arriba">↑fila</button>
+                <button type="button" id="btn-add-row-after"  class="toolbar-btn text-xs" title="Agregar fila abajo">↓fila</button>
+                <button type="button" id="btn-del-row"        class="toolbar-btn text-xs" title="Eliminar fila">✕fila</button>
+                <button type="button" id="btn-add-col-before" class="toolbar-btn text-xs" title="Agregar columna izq">←col</button>
+                <button type="button" id="btn-add-col-after"  class="toolbar-btn text-xs" title="Agregar columna der">→col</button>
+                <button type="button" id="btn-del-col"        class="toolbar-btn text-xs" title="Eliminar columna">✕col</button>
+                <button type="button" id="btn-merge-cells"    class="toolbar-btn text-xs" title="Combinar celdas">⊞</button>
+                <button type="button" id="btn-split-cell"     class="toolbar-btn text-xs" title="Dividir celda">⊟</button>
+                <button type="button" id="btn-del-table"      class="toolbar-btn text-xs text-red-600" title="Eliminar tabla">✕tabla</button>
+            </div>
+
+            <button type="button" id="btn-hr" class="toolbar-btn" title="Línea horizontal">—</button>
+            <div class="toolbar-divider"></div>
+
+            <!-- Buscar/Reemplazar y Limpiar formato -->
+            <button type="button" id="btn-find-replace" class="toolbar-btn" title="Buscar y reemplazar">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/></svg>
+            </button>
+            <button type="button" id="btn-clear" class="toolbar-btn" title="Limpiar formato">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+            </button>
+
+            <div class="ml-auto text-xs text-gray-400 hidden lg:block">Las líneas azules indican saltos de página.</div>
+        </div>
+
+        <!-- Panel de Buscar/Reemplazar -->
+        <div id="find-replace-panel">
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+                <input type="text" id="find-input" placeholder="Buscar..." class="find-input">
+                <span id="find-count" class="find-count"></span>
+                <button type="button" id="btn-find-prev" class="toolbar-btn" title="Anterior">&#8593;</button>
+                <button type="button" id="btn-find-next" class="toolbar-btn" title="Siguiente">&#8595;</button>
+                <button type="button" id="btn-find-close" class="toolbar-btn text-red-500" title="Cerrar">&times;</button>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <input type="text" id="replace-input" placeholder="Reemplazar con..." class="find-input">
+                <button type="button" id="btn-replace-one" class="toolbar-btn" style="background:#eff6ff;border-color:#bfdbfe">Reemplazar</button>
+                <button type="button" id="btn-replace-all" class="toolbar-btn" style="background:#eff6ff;border-color:#bfdbfe">Reemplazar todo</button>
+            </div>
+        </div>
+
+        <!-- Documento simulado -->
+        <div class="bg-gray-100 border-x border-b border-gray-300 rounded-b-lg p-8 overflow-y-auto"
+             style="max-height: calc(100vh - 360px);">
+            <div id="page-wrapper" class="bg-white mx-auto shadow-lg"
+                 style="width:21.59cm; min-height:27.94cm; padding:1.8cm 1.8cm 2.8cm 3.2cm; box-sizing:border-box; position:relative;">
+
+                <!-- Logo institucional (NO editable) -->
+                <div style="margin-bottom:0.5cm;">
+                    <img src="{% static 'img/logo_oficial.png' %}" alt="Logo Gobierno Nacional" style="height:2.5cm; width:auto;">
+                </div>
+
+                <!-- Área editable TipTap -->
+                <div id="editor"></div>
+
+                <!-- Footer institucional (NO editable) -->
+                <div style="margin-top:1cm;">
+                    <img src="{% static 'img/footer_certificado.png' %}" alt="Footer Institucional" style="width:100%; display:block;">
+                </div>
+            </div>
+        </div>
+
+        <!-- Botones de acción -->
+        <div class="flex gap-4 mt-6">
+            <button type="submit"
+                    class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Guardar y Regenerar PDF
+            </button>
+            <a href="{% url 'tramites:detalle' id=tramite.uuid %}"
+               class="bg-gray-300 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-400">
+                Cancelar
+            </a>
+        </div>
+    </form>
+</div>
+{% endblock %}
