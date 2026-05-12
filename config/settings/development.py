@@ -55,12 +55,11 @@ else:
         }
     }
 
-# 2. Desactivar restricciones de seguridad solo durante desarrollo local.
-if DEBUG:
-    SECURE_SSL_REDIRECT = False
-    SESSION_COOKIE_SECURE = False
-    CSRF_COOKIE_SECURE = False
-    SECURE_HSTS_SECONDS = 0
+# 2. Desactivar restricciones de seguridad en entorno de desarrollo/staging.
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SECURE_HSTS_SECONDS = 0
 
 # 3. Configuración de Correo para Pruebas
 # Los correos no se envían realmente, se imprimen en la consola de VS Code
