@@ -16,7 +16,7 @@ for attr_name in dir(base_module):
 # Esto evita que las sesiones sean robadas en redes públicas/gubernamentales
 SESSION_COOKIE_SECURE = True
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'Lax'
+SESSION_COOKIE_SAMESITE = 'Strict'
 CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = True
 
@@ -39,29 +39,36 @@ X_FRAME_OPTIONS = 'DENY' # Evita que el SAGEC sea cargado en un iframe
 # 4. Configuración de AXES (Protección contra Fuerza Bruta)
 # Bloquea al usuario tras varios intentos fallidos
 AXES_FAILURE_LIMIT = 5
-AXES_COOLOFF_TIME = 1 # Hora de bloqueo
+AXES_COOLOFF_TIME = 1
 AXES_LOCKOUT_TEMPLATE = 'seguridad/bloqueo.html'
 AXES_RESET_ON_SUCCESS = True
+AXES_LOCKOUT_PARAMETERS = [['username'], ['ip_address']]
 
 # 5. Configuración de Doble Factor (2FA) - django-otp
 # Obligatorio para Fiscales y Firmantes según tu flujo
 OTP_TOTP_ISSUER = 'SAGEC MICI'
 
-# 6. Content Security Policy (CSP)
-# Define de dónde puede cargar recursos el sistema (solo de sí mismo)
-CSP_DEFAULT_SRC = ("'self'",)
-CSP_STYLE_SRC = ("'self'", "https://fonts.googleapis.com", "'unsafe-inline'")
-# 'unsafe-inline' requerido para: importmap de TipTap, bloques <script> inline del sistema,
-# y scripts de Tailwind CDN. Los CDN externos se listan explícitamente.
-CSP_SCRIPT_SRC = (
-    "'self'",
-    "'unsafe-inline'",
-    "https://cdn.tailwindcss.com",
-    "https://unpkg.com",
-    "https://esm.sh",
-)
-CSP_CONNECT_SRC = ("'self'", "https://esm.sh")  # esm.sh resuelve sub-dependencias en runtime
-CSP_IMG_SRC = ("'self'", "data:") # Permitir imágenes base64 para los logos del MICI
+# 6. Content Security Policy (CSP) — django-csp 4.x format
+# Tailwind/HTMX served from CDN until vendorized (A5). Remove CDN entries after that.
+CONTENT_SECURITY_POLICY = {
+    "DIRECTIVES": {
+        "default-src": ["'self'"],
+        "style-src": ["'self'", "https://fonts.googleapis.com", "'unsafe-inline'"],
+        # 'unsafe-inline' required for TipTap importmap and inline scripts; CDNs listed explicitly.
+        "script-src": [
+            "'self'",
+            "'unsafe-inline'",
+            "https://cdn.tailwindcss.com",
+            "https://unpkg.com",
+            "https://esm.sh",
+        ],
+        "connect-src": ["'self'", "https://esm.sh"],
+        "img-src": ["'self'", "data:"],
+        "font-src": ["'self'", "https://fonts.gstatic.com"],
+        "object-src": ["'none'"],
+        "frame-ancestors": ["'none'"],
+    }
+}
 
 # 7. Restricción de IP (Estrategia C)
 # Lista blanca de IPs institucionales (aquí pondrás las del MICI/Ministerio Público)

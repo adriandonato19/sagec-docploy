@@ -619,7 +619,7 @@ def descargar_view(request, id):
 
             # Guardar PDF generado en carpeta temporal
             temp_pdf_dir = Path(__file__).parent / 'temp_pdfs'
-            temp_pdf_dir.mkdir(exist_ok=True)
+            temp_pdf_dir.mkdir(parents=True, exist_ok=True)
             pdf_path = temp_pdf_dir / pdf_filename
 
             with open(pdf_path, 'wb') as f:
@@ -878,7 +878,7 @@ def editar_pdf_view(request, id):
         pdf_content = pdf_bytesio.read()
 
         temp_pdf_dir = Path(__file__).parent / 'temp_pdfs'
-        temp_pdf_dir.mkdir(exist_ok=True)
+        temp_pdf_dir.mkdir(parents=True, exist_ok=True)
         pdf_filename = f'tramite_{tramite.uuid}.pdf'
         pdf_path = temp_pdf_dir / pdf_filename
 

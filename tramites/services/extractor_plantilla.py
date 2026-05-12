@@ -15,6 +15,13 @@ from django.core.exceptions import ValidationError
 MAX_DOCX_BYTES = 5 * 1024 * 1024  # 5 MB
 EMU_POR_CM = 360_000
 
+# Prevent decompression-bomb / pixel-flood DoS via adversarial images in .docx
+try:
+    from PIL import Image as _PIL_Image
+    _PIL_Image.MAX_IMAGE_PIXELS = 10_000_000
+except ImportError:
+    pass
+
 
 def extraer_plantilla_desde_docx(archivo_docx) -> dict:
     """

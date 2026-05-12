@@ -45,7 +45,11 @@ def consultar_empresa(busqueda: str, page: int = 1) -> Optional[Dict]:
     Returns:
         Dict con 'resultados' (lista mapeada) y 'paginacion' (metadata), o None si falla
     """
-    url = settings.PANAMA_EMPRENDE_API_URL.format(busqueda=busqueda)
+    # URL-encode busqueda before injecting into the path to prevent path traversal
+    # (e.g. "../../other" becomes "..%2F..%2Fother", treated as a literal search term).
+    from urllib.parse import quote
+    safe_busqueda = quote(str(busqueda), safe='')
+    url = settings.PANAMA_EMPRENDE_API_URL.format(busqueda=safe_busqueda)
     headers = {
         'X-User': settings.PANAMA_EMPRENDE_USER,
         'X-Password': settings.PANAMA_EMPRENDE_PASSWORD,

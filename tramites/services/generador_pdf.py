@@ -343,30 +343,51 @@ def generar_pdf_tramite(tramite):
     return generar_pdf_desde_html(html_content)
 
 
+_NH3_ALLOWED_TAGS = {
+    'p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'del',
+    'span', 'mark', 'div',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'ul', 'ol', 'li',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    'hr', 'blockquote', 'a',
+}
+
+_NH3_ALLOWED_ATTRS = {
+    '*': {'style', 'class'},
+    'td': {'style', 'class', 'colspan', 'rowspan'},
+    'th': {'style', 'class', 'colspan', 'rowspan'},
+    'a': {'href', 'title'},
+}
+
+
 def sanitizar_html_para_weasyprint(html_content):
     """
     Limpia el HTML producido por TipTap para compatibilidad con WeasyPrint.
 
-    - Convierte <mark> con data-color a <span style="background-color:...">
-    - Asegura que las tablas tengan border-collapse
-    - Elimina atributos data-* y clases internas de ProseMirror
-    - Normaliza br vacíos de TipTap
+    Paso 1: nh3 whitelist — elimina <script>, <iframe>, on*, javascript:, etc.
+    Paso 2: transformaciones específicas para WeasyPrint (<mark>→<span>, borders, etc.)
 
     $Reusable$
     """
+    import nh3
     from bs4 import BeautifulSoup
+
+    # Strip all disallowed tags and attributes first
+    html_content = nh3.clean(
+        html_content,
+        tags=_NH3_ALLOWED_TAGS,
+        attributes=_NH3_ALLOWED_ATTRS,
+        strip_comments=True,
+        link_rel=None,
+    )
 
     soup = BeautifulSoup(html_content, 'html.parser')
 
     # Convertir <mark> a <span style="background-color:..."> para WeasyPrint
     for mark in soup.find_all('mark'):
         span = soup.new_tag('span')
-        # TipTap Highlight pone el color en data-color o como style
-        color = mark.get('data-color')
         existing_style = mark.get('style', '')
-        if color:
-            span['style'] = f'background-color: {color}; {existing_style}'.strip('; ')
-        elif 'background' in existing_style:
+        if 'background' in existing_style:
             span['style'] = existing_style
         else:
             span['style'] = 'background-color: #FFFF00'
@@ -384,12 +405,6 @@ def sanitizar_html_para_weasyprint(html_content):
         if 'border' not in existing:
             cell['style'] = f'border: 1px solid #000; padding: 4px 8px; {existing}'.strip()
 
-    # Eliminar atributos data-* de TipTap
-    for tag in soup.find_all(True):
-        attrs_to_remove = [a for a in list(tag.attrs) if a.startswith('data-')]
-        for attr in attrs_to_remove:
-            del tag[attr]
-
     # Eliminar clases internas de ProseMirror
     for tag in soup.find_all(True):
         if tag.get('class'):
@@ -399,11 +414,7 @@ def sanitizar_html_para_weasyprint(html_content):
             else:
                 del tag['class']
 
-    # TipTap serializa párrafos vacíos como <p></p> (sin <br>).
-    # En el navegador tienen altura gracias a un <br> interno que TipTap
-    # inyecta en el DOM, pero getHTML() no lo incluye.
-    # WeasyPrint colapsa los <p> vacíos a altura cero, así que agregamos
-    # un <br/> para que conserven una línea visible en el PDF.
+    # WeasyPrint colapsa <p> vacíos a cero altura; agregar <br> para preservar línea.
     for p in soup.find_all('p'):
         if not p.get_text(strip=True) and not p.find():
             p.append(soup.new_tag('br'))

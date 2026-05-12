@@ -21,7 +21,8 @@ django-widget-tweaks
 
 # Security
 django-axes  # Protección fuerza bruta
-django-csp # Para gestionar Content Security Policy (evitar XSS).
+django-csp>=4.0  # Content Security Policy headers
+nh3>=0.2.14  # HTML whitelist sanitizer (strips XSS vectors from TipTap editor output)
 django-encrypted-model-fields # Para cifrar datos sensibles en la BD (ej. tokens de API).
 django-two-factor-auth # Para implementar el 2FA obligatorio de Fiscales y Firmantes.
 django-otp # Para implementar el 2FA obligatorio de Fiscales y Firmantes.
