@@ -47,6 +47,8 @@ if database_url and use_database_url:
     DATABASES = {
         'default': env.db('DATABASE_URL'),
     }
+    DATABASES['default']['CONN_MAX_AGE'] = 60
+    DATABASES['default']['CONN_HEALTH_CHECKS'] = True
 else:
     DATABASES = {
         'default': {
