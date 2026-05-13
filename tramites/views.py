@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.core.files.base import ContentFile
 from django.db.models import Q
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.clickjacking import xframe_options_sameorigin
@@ -386,16 +387,8 @@ def aprobar_view(request, id):
         pdf_bytesio = generar_pdf_tramite(tramite)
         pdf_content = pdf_bytesio.read()
 
-        temp_pdf_dir = Path(__file__).parent / 'temp_pdfs'
-        temp_pdf_dir.mkdir(exist_ok=True)
         pdf_filename = f'tramite_{tramite.uuid}.pdf'
-        pdf_path = temp_pdf_dir / pdf_filename
-
-        with open(pdf_path, 'wb') as f:
-            f.write(pdf_content)
-
-        tramite.archivo_pdf.name = f'temp_pdfs/{pdf_filename}'
-        tramite.save()
+        tramite.archivo_pdf.save(pdf_filename, ContentFile(pdf_content), save=True)
 
         messages.success(request, 'Solicitud aprobada. Revise y apruebe el PDF antes de enviarlo a firma.')
     except Exception as e:
@@ -524,13 +517,12 @@ def firmar_view(request, id):
 
             estado_anterior = tramite.estado
 
-            # Leer PDF aprobado desde disco
-            pdf_path = Path(__file__).parent / tramite.archivo_pdf.name
-            if not pdf_path.exists():
+            # Leer PDF aprobado desde storage
+            if not tramite.archivo_pdf or not tramite.archivo_pdf.storage.exists(tramite.archivo_pdf.name):
                 messages.error(request, 'No se encontró el PDF aprobado.')
                 return render(request, 'tramites/firmar.html', {'tramite': tramite})
 
-            with open(pdf_path, 'rb') as f:
+            with tramite.archivo_pdf.open('rb') as f:
                 pdf_bytes = f.read()
 
             # Firmar el PDF con el certificado .p12
@@ -539,18 +531,9 @@ def firmar_view(request, id):
             # Calcular hash SHA-256 del PDF firmado
             hash_documento = calcular_hash_pdf(pdf_firmado)
 
-            # Guardar PDF firmado en carpeta temporal
-            temp_pdf_dir = Path(__file__).parent / 'temp_pdfs' / 'firmados'
-            temp_pdf_dir.mkdir(parents=True, exist_ok=True)
-
+            # Guardar PDF firmado en storage
             pdf_filename = f'tramite_{tramite.uuid}_firmado.pdf'
-            firmado_path = temp_pdf_dir / pdf_filename
-
-            with open(firmado_path, 'wb') as f:
-                f.write(pdf_firmado)
-
-            # Actualizar modelo
-            tramite.archivo_pdf_firmado.name = f'temp_pdfs/firmados/{pdf_filename}'
+            tramite.archivo_pdf_firmado.save(pdf_filename, ContentFile(pdf_firmado), save=False)
             tramite.marcar_firmado(request.user, hash_documento=hash_documento)
 
             # Registrar evento de firma
@@ -604,31 +587,25 @@ def descargar_view(request, id):
         pdf_filename = f'tramite_{tramite.uuid}.pdf'
 
         # Prioridad 1: PDF firmado si existe y el trámite está firmado
-        if tramite.estado == Tramite.FIRMADO and tramite.archivo_pdf_firmado and tramite.archivo_pdf_firmado.name:
-            pdf_path = Path(__file__).parent / 'temp_pdfs' / 'firmados' / f'tramite_{tramite.uuid}_firmado.pdf'
-            if pdf_path.exists():
-                with open(pdf_path, 'rb') as f:
-                    pdf_content = f.read()
-                pdf_filename = f'tramite_{tramite.uuid}_firmado.pdf'
+        if (tramite.estado == Tramite.FIRMADO
+                and tramite.archivo_pdf_firmado
+                and tramite.archivo_pdf_firmado.name
+                and tramite.archivo_pdf_firmado.storage.exists(tramite.archivo_pdf_firmado.name)):
+            with tramite.archivo_pdf_firmado.open('rb') as f:
+                pdf_content = f.read()
+            pdf_filename = f'tramite_{tramite.uuid}_firmado.pdf'
 
         # Prioridad 2: Regenerar PDF desde html_pdf_editado o plantilla
-        # Siempre regenerar para garantizar que refleje los últimos cambios
         if not pdf_content:
             pdf_bytesio = generar_pdf_tramite(tramite)
             pdf_content = pdf_bytesio.read()
 
-            # Guardar PDF generado en carpeta temporal
-            temp_pdf_dir = Path(__file__).parent / 'temp_pdfs'
-            temp_pdf_dir.mkdir(parents=True, exist_ok=True)
-            pdf_path = temp_pdf_dir / pdf_filename
-
-            with open(pdf_path, 'wb') as f:
-                f.write(pdf_content)
-
-            # Actualizar modelo si no tenía archivo
+            # Persistir en storage para la próxima descarga
             if not tramite.archivo_pdf or not tramite.archivo_pdf.name:
-                tramite.archivo_pdf.name = f'temp_pdfs/{pdf_filename}'
-                tramite.save()
+                tramite.archivo_pdf.save(pdf_filename, ContentFile(pdf_content), save=True)
+            else:
+                tramite.archivo_pdf.save(pdf_filename, ContentFile(pdf_content), save=False)
+                tramite.save(update_fields=['archivo_pdf'])
         
         # Registrar evento de descarga
         ip_cliente = obtener_ip_cliente(request)
@@ -877,15 +854,8 @@ def editar_pdf_view(request, id):
         pdf_bytesio = generar_pdf_desde_html(html_final)
         pdf_content = pdf_bytesio.read()
 
-        temp_pdf_dir = Path(__file__).parent / 'temp_pdfs'
-        temp_pdf_dir.mkdir(parents=True, exist_ok=True)
         pdf_filename = f'tramite_{tramite.uuid}.pdf'
-        pdf_path = temp_pdf_dir / pdf_filename
-
-        with open(pdf_path, 'wb') as f:
-            f.write(pdf_content)
-
-        tramite.archivo_pdf.name = f'temp_pdfs/{pdf_filename}'
+        tramite.archivo_pdf.save(pdf_filename, ContentFile(pdf_content), save=False)
         tramite.save(update_fields=['archivo_pdf'])
 
         # Registrar evento

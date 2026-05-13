@@ -162,9 +162,7 @@ class Tramite(models.Model):
     def limpiar_borrador_pdf(self):
         """Elimina el PDF temporal y limpia el HTML editado asociado."""
         if self.archivo_pdf and self.archivo_pdf.name:
-            pdf_path = Path(__file__).parent / self.archivo_pdf.name
-            if pdf_path.exists():
-                pdf_path.unlink()
+            self.archivo_pdf.delete(save=False)
         self.archivo_pdf = None
         self.html_pdf_editado = ''
 
