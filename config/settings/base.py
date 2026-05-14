@@ -132,8 +132,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # 9. API Panamá Emprende
 PANAMA_EMPRENDE_API_URL = 'https://api.panamaemprende.gob.pa/api/consulta/multiple/{busqueda}'
-PANAMA_EMPRENDE_USER = os.environ.get('X-USER', '')
-PANAMA_EMPRENDE_PASSWORD = os.environ.get('X-PASSWORD', '')
+PANAMA_EMPRENDE_USER = os.environ.get('PANAMA_EMPRENDE_USER', '')
+PANAMA_EMPRENDE_PASSWORD = os.environ.get('PANAMA_EMPRENDE_PASSWORD', '')
 
 # 10. Firma Digital
 SIGNING_CERT_PATH = os.environ.get('SIGNING_CERT_PATH', '')
