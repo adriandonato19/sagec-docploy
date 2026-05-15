@@ -1,0 +1,3 @@
+[submodule "dokploy-mcp"]
+	path = dokploy-mcp
+	url = https://github.com/Dokploy/mcp.git
